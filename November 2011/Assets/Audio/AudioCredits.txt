@@ -1,0 +1,45 @@
+﻿Audio credits (copied from the user's Western project, all CC0 1.0 Universal)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+NailGun_* clips are renamed revolver-mechanism recordings:
+  NailGun_Fire_A/B        <- Hammer_Fall_A/B
+  NailGun_DryFire         <- Cylinder_Index_A
+  NailGun_Reload_Open     <- Gate_Open
+  NailGun_Reload_Seat_A-C <- Cartridge_Seat_A-C
+  NailGun_Reload_Close    <- Gate_Close
+  NailGun_Pickup          <- Spent_Case_Out
+
+Original credits:
+Dragonback revolver audio
+
+All recordings listed below were published under CC0 1.0 Universal.
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Guy_Personface recorded the hammer, loading and cylinder actions of a Remington 1875.
+https://freesound.org/people/Guy_Personface/sounds/795314/
+https://freesound.org/people/Guy_Personface/sounds/795315/
+https://freesound.org/people/Guy_Personface/sounds/795316/
+https://freesound.org/people/Guy_Personface/sounds/795317/
+https://freesound.org/people/Guy_Personface/sounds/795318/
+
+swidmark recorded the brass case contacts.
+https://freesound.org/people/swidmark/sounds/171322/
+
+johnyridgeback recorded the Colt Peacemaker muzzle report.
+https://freesound.org/people/johnyridgeback/sounds/567272/
+
+Jon285 recorded the black-powder discharges and the cocking sounds used in the fan strokes.
+https://freesound.org/people/Jon285/sounds/34708/
+
+Toni T. / DigPro120 recorded the leather impacts used for the palm strokes.
+https://freesound.org/people/DigPro120/sounds/432651/
+
+craigsmith digitized the vintage Western optical reports and ricochet recordings.
+https://freesound.org/people/craigsmith/sounds/675643/
+https://freesound.org/people/craigsmith/sounds/486071/
+
+The game edits use trims, filtering, layering, level changes and echoes.
+The gate and ejector cues combine close handling sounds from the loading session.
+
+
+Impacts/Impact_Metal_0-2 <- Kenney "Impact Sounds" 1.0 (www.kenney.nl), CC0 1.0.
