@@ -138,3 +138,6 @@ crashlytics-build.properties
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Blender auto-backups (FileName.blend1) - never commit
+*.blend1
