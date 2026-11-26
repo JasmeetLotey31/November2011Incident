@@ -20,6 +20,8 @@ public class NailProjectile : MonoBehaviour
     [Tooltip("One is picked at random when the nail lands.")]
     [SerializeField] AudioClip[] impactClips;
     [Range(0, 1)] [SerializeField] float impactVolume = .6f;
+    [Tooltip("Streak behind the flying nail so you can see its path and drop. Stops when the nail sticks.")]
+    [SerializeField] TrailRenderer streak;
 
     /// <summary>Oldest stuck nails are cleaned up past this count.</summary>
     const int MaxStuckNails = 60;
@@ -100,8 +102,9 @@ public class NailProjectile : MonoBehaviour
                 bend.pinned = true;
                 bend.pinPoint = wall.point;
             }
-            target.ApplyBend(bend);
-            stickTo = targetRoot; // follow the target when it moves
+            BendOutcome outcome = target.ApplyBend(bend);
+            CombatFeedback.Report(bend, outcome, target);
+            stickTo = target.AttachPoint; // follow the target as it moves and bends
         }
 
         Stick(hit.point + direction * embedDepth, direction, stickTo);
@@ -118,6 +121,8 @@ public class NailProjectile : MonoBehaviour
     {
         stuck = true;
         transform.SetPositionAndRotation(position, Quaternion.LookRotation(direction));
+        // The streak's tail finishes fading on its own; no new points once it's stuck.
+        if (streak != null) streak.emitting = false;
         // Only parent to moving targets; parenting to scaled level geometry would skew the nail.
         if (parent != null) transform.SetParent(parent, true);
         if (pickup != null) pickup.SetCollectable(true);

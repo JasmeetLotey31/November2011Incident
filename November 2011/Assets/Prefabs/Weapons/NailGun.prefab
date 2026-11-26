@@ -102,6 +102,7 @@ GameObject:
   - component: {fileID: 3505901759327554301}
   - component: {fileID: 4642980883054503101}
   - component: {fileID: 3478991419535858870}
+  - component: {fileID: 7482772767222792448}
   m_Layer: 0
   m_Name: NailGun
   m_TagString: Untagged
@@ -291,6 +292,33 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NailGunHUD
   screenOffset: {x: -34, y: 30}
   showCrosshair: 1
+--- !u!114 &7482772767222792448
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1374137804803618898}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 57185feec4055564993d57d2f3b1f70f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HitFeedback
+  audioSource: {fileID: 3505901759327554301}
+  bentClip: {fileID: 8300000, guid: a8429b53f2d42ee4d908b1f6a766d5e8, type: 3}
+  jammedClip: {fileID: 8300000, guid: 206007d4181a35845ac4abf9f324f24f, type: 3}
+  pinnedClip: {fileID: 8300000, guid: 465fb170899cba84bbda3f32e3ad9cfe, type: 3}
+  volume: 0.9
+  bentPitchRange: {x: 1, y: 1.35}
+  jammedPitch: 0.9
+  pinnedPitch: 0.7
+  jamHitstop: 0.05
+  pinHitstop: 0.08
+  hitstopTimeScale: 0.03
+  jamPunchAmount: 1.2
+  jamPunchDegrees: 1.8
+  pinPunchAmount: 1.6
+  pinPunchDegrees: 2.6
 --- !u!1 &4720059321689168946
 GameObject:
   m_ObjectHideFlags: 0

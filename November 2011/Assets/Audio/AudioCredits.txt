@@ -1,4 +1,4 @@
-﻿Audio credits (copied from the user's Western project, all CC0 1.0 Universal)
+Audio credits (copied from the user's Western project, all CC0 1.0 Universal)
 https://creativecommons.org/publicdomain/zero/1.0/
 
 NailGun_* clips are renamed revolver-mechanism recordings:
@@ -8,6 +8,9 @@ NailGun_* clips are renamed revolver-mechanism recordings:
   NailGun_Reload_Seat_A-C <- Cartridge_Seat_A-C
   NailGun_Reload_Close    <- Gate_Close
   NailGun_Pickup          <- Spent_Case_Out
+  Hit_Tink                <- Cylinder_Index_B
+  Hit_Jam                 <- Half_Cock
+  Hit_Pin                 <- Thumb_Cock_A
 
 Original credits:
 Dragonback revolver audio

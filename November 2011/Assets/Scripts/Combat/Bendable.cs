@@ -19,6 +19,8 @@ public class Bendable : MonoBehaviour, IBendable
     [Tooltip("Meter drained per second once the target hasn't been hit for a while (0 = never).")]
     [SerializeField] float bendDecayPerSecond = 0.15f;
     [SerializeField] float decayDelay = 3f;
+    [Tooltip("Where nails that hit this stay attached. Use the animated visual pivot so nails bend with it. Defaults to this object.")]
+    [SerializeField] Transform attachPoint;
 
     [Header("Events")]
     public UnityEvent onJammed;
@@ -37,9 +39,15 @@ public class Bendable : MonoBehaviour, IBendable
 
     float lastHitTime = float.NegativeInfinity;
 
-    public void ApplyBend(BendHit hit)
+    /// <summary>Every hit and what it did (for bend/shake animation on the target itself).</summary>
+    public event Action<BendHit, BendOutcome> Hit;
+
+    public Transform AttachPoint => attachPoint != null ? attachPoint : transform;
+
+    public BendOutcome ApplyBend(BendHit hit)
     {
         lastHitTime = Time.time;
+        BendOutcome outcome;
 
         if (IsJammed)
         {
@@ -49,13 +57,23 @@ public class Bendable : MonoBehaviour, IBendable
                 IsPinned = true;
                 PinPoint = hit.pinPoint;
                 JamTimeRemaining = Mathf.Max(JamTimeRemaining, pinnedJamDuration);
+                outcome = BendOutcome.Pinned;
             }
-            return;
+            else outcome = BendOutcome.None;
+        }
+        else
+        {
+            Bend = Mathf.Min(maxBend, Bend + hit.amount);
+            if (Bend >= maxBend)
+            {
+                Jam(hit);
+                outcome = hit.pinned ? BendOutcome.Pinned : BendOutcome.Jammed;
+            }
+            else outcome = BendOutcome.Bent;
         }
 
-        Bend = Mathf.Min(maxBend, Bend + hit.amount);
-        if (Bend >= maxBend)
-            Jam(hit);
+        Hit?.Invoke(hit, outcome);
+        return outcome;
     }
 
     void Jam(BendHit hit)

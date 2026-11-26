@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 8083279459451901042}
   - component: {fileID: 1776435555744442265}
   - component: {fileID: 5092133247564029078}
+  - component: {fileID: 1074043082813541470}
   m_Layer: 0
   m_Name: JamDummy
   m_TagString: Untagged
@@ -32,7 +33,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 6558174456209707313}
+  - {fileID: 744516941886390494}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!136 &8083279459451901042
@@ -75,6 +76,7 @@ MonoBehaviour:
   pinnedJamDuration: 10
   bendDecayPerSecond: 0.15
   decayDelay: 3
+  attachPoint: {fileID: 744516941886390494}
   onJammed:
     m_PersistentCalls:
       m_Calls: []
@@ -98,6 +100,29 @@ MonoBehaviour:
   bentColor: {r: 1, g: 0.45, b: 0.1, a: 1}
   jammedColor: {r: 0.2, g: 0.35, b: 1, a: 1}
   pinnedColor: {r: 0.1, g: 0.95, b: 1, a: 1}
+--- !u!114 &1074043082813541470
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1900933722768993235}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 283ab63b350d6a142988d3e31300e379, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BendReaction
+  pivot: {fileID: 744516941886390494}
+  maxBendLean: 16
+  jammedLean: 38
+  leanSmoothTime: 0.08
+  recoverSmoothTime: 0.35
+  wobblePerHit: 14
+  wobbleStiffness: 220
+  wobbleDamping: 11
+  pinShudderDegrees: 5
+  pinShudderSeconds: 0.5
+  pinShudderFrequency: 38
 --- !u!1 &4310401747561062081
 GameObject:
   m_ObjectHideFlags: 0
@@ -124,12 +149,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4310401747561062081}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 1, z: 0}
   m_LocalScale: {x: 0.8, y: 1, z: 0.8}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 2818094942668488346}
+  m_Father: {fileID: 744516941886390494}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &7093540938057299199
 MeshFilter:
@@ -188,3 +213,35 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &9036063405187918136
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 744516941886390494}
+  m_Layer: 0
+  m_Name: Pivot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &744516941886390494
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9036063405187918136}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 6558174456209707313}
+  m_Father: {fileID: 2818094942668488346}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

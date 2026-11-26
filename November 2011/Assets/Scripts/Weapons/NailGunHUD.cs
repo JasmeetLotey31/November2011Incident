@@ -35,6 +35,15 @@ public sealed class NailGunHUD : MonoBehaviour
     Sprite circleSprite;
     int lastLoaded = -1, lastReserve = -1;
 
+    // Hit marker: an X around the crosshair that flashes on hits, scaled by what the hit did.
+    static readonly Color HitBent = new Color(1f, 1f, 1f, 1f);
+    static readonly Color HitJammed = new Color(1f, 0.55f, 0.15f, 1f);
+    static readonly Color HitPinned = new Color(0.25f, 0.95f, 1f, 1f);
+    RectTransform hitMarker;
+    Image[] hitMarkerBars;
+    Color hitColor;
+    float hitStartedAt = float.NegativeInfinity, hitDuration, hitScale = 1f;
+
     void Awake()
     {
         gun = GetComponent<NailGun>();
@@ -45,11 +54,44 @@ public sealed class NailGunHUD : MonoBehaviour
     void OnEnable()
     {
         if (uiRoot != null) uiRoot.SetActive(true);
+        CombatFeedback.TargetHit += OnTargetHit;
     }
 
     void OnDisable()
     {
         if (uiRoot != null) uiRoot.SetActive(false);
+        CombatFeedback.TargetHit -= OnTargetHit;
+    }
+
+    void OnTargetHit(BendHit hit, BendOutcome outcome, IBendable target)
+    {
+        if (hit.source != transform.root.gameObject) return;
+        // Unscaled time: the marker must still play through a hitstop.
+        hitStartedAt = Time.unscaledTime;
+        switch (outcome)
+        {
+            case BendOutcome.Pinned: hitColor = HitPinned; hitScale = 1.6f; hitDuration = .35f; break;
+            case BendOutcome.Jammed: hitColor = HitJammed; hitScale = 1.35f; hitDuration = .25f; break;
+            case BendOutcome.Bent: hitColor = HitBent; hitScale = 1f; hitDuration = .14f; break;
+            default: hitColor = new Color(.7f, .7f, .7f, 1f); hitScale = .85f; hitDuration = .1f; break;
+        }
+    }
+
+    void UpdateHitMarker()
+    {
+        if (hitMarker == null) return;
+        float age = Time.unscaledTime - hitStartedAt;
+        bool visible = age >= 0f && age < hitDuration;
+        hitMarker.gameObject.SetActive(visible);
+        if (!visible) return;
+
+        float t = age / hitDuration;
+        // Pops out slightly bigger, then shrinks back while fading.
+        float pop = 1f + .25f * (1f - t) * (1f - t);
+        hitMarker.localScale = Vector3.one * (hitScale * pop);
+        Color c = hitColor;
+        c.a = 1f - t * t;
+        foreach (Image bar in hitMarkerBars) bar.color = c;
     }
 
     void OnDestroy()
@@ -61,6 +103,7 @@ public sealed class NailGunHUD : MonoBehaviour
 
     void LateUpdate()
     {
+        UpdateHitMarker();
         if (gun.Loaded != lastLoaded || gun.Reserve != lastReserve) RefreshAmmo();
 
         reloadBar.gameObject.SetActive(gun.IsReloading);
@@ -181,6 +224,24 @@ public sealed class NailGunHUD : MonoBehaviour
                 Center(tick.rectTransform, d * 14f, size);
             }
         }
+
+        // --- hit marker: four diagonal bars forming an X around the crosshair ---
+        hitMarker = Rect("Hit Marker", uiRoot.transform);
+        hitMarker.anchorMin = hitMarker.anchorMax = hitMarker.pivot = new Vector2(.5f, .5f);
+        hitMarker.sizeDelta = new Vector2(48f, 48f);
+        hitMarker.localRotation = Quaternion.Euler(0f, 0f, 45f);
+        hitMarkerBars = new Image[4];
+        Vector2[] arms = { Vector2.up, Vector2.down, Vector2.left, Vector2.right };
+        for (int i = 0; i < arms.Length; i++)
+        {
+            Vector2 size = arms[i].x != 0 ? new Vector2(11f, 3f) : new Vector2(3f, 11f);
+            hitMarkerBars[i] = Img("Hit Bar", hitMarker, HitBent);
+            Center(hitMarkerBars[i].rectTransform, arms[i] * 13f, size);
+            var outline = hitMarkerBars[i].gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0, 0, 0, .6f);
+            outline.effectDistance = new Vector2(1f, -1f);
+        }
+        hitMarker.gameObject.SetActive(false);
 
         // --- pickup prompt (just below the crosshair) ---
         promptText = Txt("Pickup Prompt", uiRoot.transform, 22, TextAnchor.MiddleCenter);
