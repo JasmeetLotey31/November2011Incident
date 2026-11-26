@@ -3768,7 +3768,7 @@ MonoBehaviour:
   tongueTip: {fileID: 8634978762473570611}
   diveMarkerMaterial: {fileID: 2100000, guid: 7a73427244407db4fb1da4a828d37eb7, type: 2}
   goreMaterial: {fileID: 2100000, guid: 1382993028128a34f85de90190bb082e, type: 2}
-  chompRange: 3.6
+  chompRange: 4.5
   chompWindUp: 0.42
   chompLungeSpeed: 15
   chompDamage: 32
@@ -3784,7 +3784,7 @@ MonoBehaviour:
   spearSpeed: 45
   spearDamage: 16
   yankSpeed: 16
-  tongueToughness: 25
+  tongueToughness: 75
   diveCooldown: 9
   diveAimSeconds: 0.95
   diveFallSpeed: 28
@@ -3805,23 +3805,30 @@ MonoBehaviour:
   biteAfter: 2.4
   swallowDamage: 70
   escapeDamage: 60
-  orbitRadius: {x: 5, y: 10}
+  orbitRadius: {x: 3, y: 6}
   orbitHeight: {x: 2.6, y: 3.3}
   cruiseSpeed: 6.5
   acceleration: 14
-  attackCooldown: {x: 1.8, y: 3.6}
+  attackCooldown: {x: 0.5, y: 1.2}
   worldMask:
     serializedVersion: 2
     m_Bits: 4294967295
   glitchCooldown: {x: 7, y: 13}
-  hiddenSeconds: {x: 1.2, y: 2.6}
-  appearDistance: {x: 3.5, y: 6}
+  hiddenSeconds: {x: 0.7, y: 1.4}
+  appearDistance: {x: 2.5, y: 4}
   feedRate: 18
   meatPerGrowth: 60
   growthPerStep: 0.15
   maxGrowth: 1.6
-  staggerEvery: 0.3
+  staggerEvery: 0.5
   staggerSeconds: 1.6
+  cancelStunSeconds: 0.9
+  interruptDamage: 120
+  retaliateSeconds: 0.35
+  rushChance: 0.4
+  rushSpeed: 13
+  packRadius: 14
+  packFollowUp: {x: 0.4, y: 1}
   voice: {fileID: 6184871775431933055}
   sfx: {fileID: 2906709312532929744}
   whisper: {fileID: 2882928500363873487}

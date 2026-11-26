@@ -18,7 +18,7 @@ public static class KeyHorde
     public static int BlackoutExtraRushers = 2;
 
     /// <summary>Flyers allowed to dive at once (more when you're vulnerable or the lights are out).</summary>
-    public static int MaxDivers = 2;
+    public static int MaxDivers = 3;
 
     static readonly List<KeyAlien> members = new List<KeyAlien>();
     static readonly List<KeyAlien> rushers = new List<KeyAlien>();
@@ -115,7 +115,7 @@ public static class KeyHorde
         rushers.Clear();
         flyers.Clear();
         divers.Clear();
-        MaxDivers = 2;
+        MaxDivers = 3;
         MaxRushers = 3;
         VulnerableExtraRushers = 5;
         BlackoutExtraRushers = 2;

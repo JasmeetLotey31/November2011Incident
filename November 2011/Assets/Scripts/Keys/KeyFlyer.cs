@@ -103,6 +103,9 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     [Header("Flight")]
     [SerializeField] Vector2 orbitRadius = new Vector2(5f, 10f);
     [SerializeField] Vector2 orbitHeight = new Vector2(2.6f, 3.3f);
+    [Tooltip("Chance a key is a ranged one that circles further out.")]
+    [Range(0, 1)] [SerializeField] float rangedChance = .35f;
+    [SerializeField] Vector2 rangedRadius = new Vector2(8f, 11f);
     [SerializeField] float cruiseSpeed = 7f;
     [SerializeField] float acceleration = 16f;
     [SerializeField] Vector2 attackCooldown = new Vector2(1.2f, 2.6f);
@@ -120,8 +123,23 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     [SerializeField] float maxGrowth = 1.6f;
 
     [Header("Stagger")]
-    [Range(.1f, .6f)] [SerializeField] float staggerEvery = .3f;
+    [Tooltip("Staggers each time it loses this fraction of its health.")]
+    [Range(.1f, .6f)] [SerializeField] float staggerEvery = .5f;
     [SerializeField] float staggerSeconds = 1.6f;
+    [Tooltip("Stun when you cancel an attack (cut the tongue, blast the mouth mid wind-up).")]
+    [SerializeField] float cancelStunSeconds = .9f;
+    [Tooltip("Damage into the mouth during a chomp/spit wind-up needed to stop it (less only flinches it).")]
+    [SerializeField] float interruptDamage = 120f;
+
+    [Header("Aggression")]
+    [Tooltip("After it's shot, it attacks again within this many seconds (if it can).")]
+    [SerializeField] float retaliateSeconds = .35f;
+    [Tooltip("Chance it rushes in for a chomp when it's ready to attack but too far for one.")]
+    [Range(0, 1)] [SerializeField] float rushChance = .4f;
+    [SerializeField] float rushSpeed = 13f;
+    [Tooltip("Other keys this close follow up on an attack within (min, max) seconds.")]
+    [SerializeField] float packRadius = 14f;
+    [SerializeField] Vector2 packFollowUp = new Vector2(.4f, 1f);
 
     [Header("Audio")]
     [SerializeField] AudioSource voice;
@@ -138,7 +156,7 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
 
     public State Current => state;
     public bool IsDead => state == State.Dead;
-    public bool IsDiving => state != State.Hidden && state != State.Appear && state != State.Hunt && state != State.Feed
+    public bool IsDiving => rushing || state != State.Hidden && state != State.Appear && state != State.Hunt && state != State.Feed
                             && state != State.Recover && state != State.Stagger && state != State.Stuck && state != State.Dead;
     public bool IsAttackingDive => state == State.DiveAim || state == State.DiveFall;
     public Vector3 DiveTarget => diveTarget;
@@ -157,6 +175,8 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     float stateTime, orbitAngle, orbitDir, radius, height, nextAttack, nextGlitch, nextChant, nextDive, nextScream, basePitch, seed;
     float mouthOpen, mouthTarget, growth = 1f, meatEaten, tongueDamage, throatDamage, nextChew, lastStaggerAt = 1f, hiddenFor;
     float whipStartAngle, whipY, spitFired, deadFall;
+    float staggerFor, windUpDamage, lastHurtTime = -10f, rushUntil;
+    bool rushing;
     bool hitLanded;
     Vector3 velocity, tongueDir, tongueTipPos, baseScale, diveTarget, lungeDir;
     Corpse meal;
@@ -174,7 +194,10 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         block = new MaterialPropertyBlock();
         seed = UnityEngine.Random.value * 100f;
         orbitDir = UnityEngine.Random.value < .5f ? -1f : 1f;
-        radius = UnityEngine.Random.Range(orbitRadius.x, orbitRadius.y);
+        // Roles: most swarm in close (chomp, whip, rush); some hang back (spear, spit, dive).
+        radius = UnityEngine.Random.value < rangedChance
+            ? UnityEngine.Random.Range(rangedRadius.x, rangedRadius.y)
+            : UnityEngine.Random.Range(orbitRadius.x, orbitRadius.y);
         height = UnityEngine.Random.Range(orbitHeight.x, orbitHeight.y);
         basePitch = UnityEngine.Random.Range(voicePitch.x, voicePitch.y);
         if (visual != null) baseScale = visual.localScale;
@@ -266,19 +289,33 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
                 break;
 
             case State.Hunt:
-                if (!alive) { Steer(transform.position + Vector3.up, 2f, dt); break; }
+                if (!alive) { rushing = false; Steer(transform.position + Vector3.up, 2f, dt); break; }
+                ChantClack();
+                if (rushing)
+                {
+                    // Charging straight at your face for a chomp (it already holds an attack slot).
+                    Vector3 side = Flat(transform.position - target.Position);
+                    side = side.sqrMagnitude > .01f ? side.normalized : -Flat(target.View.transform.forward).normalized;
+                    Steer(target.EyePosition + side * 2f + Vector3.up * .5f, rushSpeed * speedMul, dt);
+                    Face(target.EyePosition - transform.position, dt, 720f);
+                    mouthTarget = .35f;
+                    if (distance <= chompRange) { rushing = false; Enter(State.BiteWindUp); }
+                    else if (Time.time > rushUntil) { rushing = false; KeyHorde.ReleaseDiveToken(this); Enter(State.Hunt); }
+                    break;
+                }
                 orbitAngle += 50f * orbitDir * dt;
                 float a = orbitAngle * Mathf.Deg2Rad;
                 Vector3 desired = target.Position + new Vector3(Mathf.Sin(a) * radius, height + Mathf.Sin((Time.time + seed) * 1.7f) * .35f, Mathf.Cos(a) * radius);
                 Steer(KeepInside(target.Position + Vector3.up * height, desired), cruiseSpeed * speedMul, dt);
                 Face(target.EyePosition - transform.position, dt, 360f);
-                ChantClack();
                 if (Time.time >= nextAttack && KeyHorde.TryTakeDiveToken(this))
                 {
                     if (!ChooseAttack(target, prey, distance)) { KeyHorde.ReleaseDiveToken(this); nextAttack = Time.time + .4f; }
                 }
-                else if (!frenzy && Time.time >= nextGlitch && !target.IsAimingAt(transform.position, 25f)) GlitchOut();
-                else if (!frenzy && meal == null && Mathf.Repeat(Time.time + seed, 3f) < dt) TryStartFeeding(target);
+                // Glitching away is for stalking, not for running from a fight.
+                else if (!frenzy && Time.time >= nextGlitch && Time.time - lastHurtTime > 3f && !target.IsAimingAt(transform.position, 25f)) GlitchOut();
+                // Feeding only while the hunt has backed off.
+                else if (!frenzy && meal == null && IsLull() && Mathf.Repeat(Time.time + seed, 3f) < dt) TryStartFeeding(target);
                 break;
 
             case State.Feed: UpdateFeed(target, alive, frenzy, dt); break;
@@ -505,17 +542,22 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
                 break;
 
             case State.Recover:
-                Vector3 away = alive ? Flat(transform.position - target.Position).normalized : -transform.forward;
-                Steer(transform.position + away * 3f + Vector3.up * 1.5f, cruiseSpeed, dt);
-                if (stateTime > .7f) { KeyHorde.ReleaseDiveToken(this); Enter(State.Hunt); }
+            {
+                // Swings off to the side and straight back into the circle: no running away.
+                Vector3 toward = alive ? Flat(target.Position - transform.position).normalized : transform.forward;
+                Vector3 strafe = Vector3.Cross(Vector3.up, toward) * orbitDir;
+                Steer(transform.position + strafe * 2.5f - toward * .8f + Vector3.up * .6f, cruiseSpeed, dt);
+                if (alive) Face(target.EyePosition - transform.position, dt, 360f);
+                if (stateTime > .35f) { KeyHorde.ReleaseDiveToken(this); Enter(State.Hunt); }
                 break;
+            }
 
             case State.Stagger:
                 mouthTarget = .7f;
                 Vector3 low = new Vector3(transform.position.x, FloorHeight() + 1.9f * growth, transform.position.z);
                 transform.position = Vector3.MoveTowards(transform.position, low, 6f * dt);
                 velocity = Vector3.zero;
-                if (stateTime >= staggerSeconds) Enter(State.Hunt);
+                if (stateTime >= staggerFor) Enter(State.Hunt);
                 break;
         }
 
@@ -540,6 +582,7 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         if (distance >= spitRange.x && distance <= spitRange.y && HasLineTo(target.EyePosition)) options.Add((State.SpitWindUp, 2.5f));
         if (Time.time >= nextDive && CeilingHeight(target.Position) - FloorHeight() > 3.5f) options.Add((State.DiveRise, 3f));
         if (Time.time >= nextScream && CountKeysNear(14f) >= 2) options.Add((State.Scream, 1.5f));
+        if (distance > chompRange && distance < 12f && HasLineTo(target.EyePosition)) options.Add((State.Hunt, 10f * rushChance)); // rush in
         if (options.Count == 0) return false;
 
         float total = 0f; foreach (var o in options) total += o.w;
@@ -547,6 +590,15 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         State pick = options[0].s;
         foreach (var o in options) { if ((roll -= o.w) <= 0f) { pick = o.s; break; } }
 
+        if (pick == State.Hunt)
+        {
+            // Rush: charge in and chomp. Keeps the attack slot while closing.
+            rushing = true;
+            rushUntil = Time.time + 2.2f;
+            PlayOneShot(screamClips, 1f);
+            CallPack();
+            return true;
+        }
         switch (pick)
         {
             case State.WhipWindUp: whipStartAngle = whipArc * .5f * (UnityEngine.Random.value < .5f ? -1f : 1f); break;
@@ -555,6 +607,24 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         }
         Enter(pick);
         return true;
+    }
+
+    /// <summary>One attacks, the ones nearby pile in right after.</summary>
+    void CallPack()
+    {
+        foreach (KeyFlyer k in KeyHorde.Flyers)
+        {
+            if (k == null || k == this || k.IsDead || k.state != State.Hunt || k.rushing) continue;
+            if (Vector3.Distance(k.transform.position, transform.position) > packRadius) continue;
+            k.nextAttack = Mathf.Min(k.nextAttack, Time.time + UnityEngine.Random.Range(packFollowUp.x, packFollowUp.y));
+        }
+    }
+
+    /// <summary>The director has backed off (or there is none): time to eat.</summary>
+    static bool IsLull()
+    {
+        KeyHordeDirector d = KeyHordeDirector.Active;
+        return d == null || d.Current == KeyHordeDirector.Phase.Relax;
     }
 
     void DoScream(KeyTarget target, PlayerEaten prey)
@@ -812,7 +882,7 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
                 BloodVFX.Spray(tongueTipPos, Vector3.down, BloodVFX.KeyIchor, 2f);
                 PlayOneShot(screamClips, 1f);
                 RetractTongue();
-                Stagger();
+                Stagger(cancelStunSeconds);
                 return;
             }
         }
@@ -821,17 +891,33 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
             throatDamage += info.amount;
             if (throatDamage >= escapeDamage) { SpitOut(); return; }
         }
-        // A hit to the open mouth interrupts a chomp or a spit.
-        if ((state == State.BiteWindUp || state == State.SpitWindUp) && info.part == BodyPart.Throat) { Stagger(); return; }
+        // Shots into the open mouth during a chomp or spit wind-up: one only makes it flinch (a
+        // fraction later, still coming); a shotgun blast or a couple of clean hits stop it.
+        if ((state == State.BiteWindUp || state == State.SpitWindUp) && info.part == BodyPart.Throat)
+        {
+            windUpDamage += info.amount;
+            if (windUpDamage >= interruptDamage) { Stagger(cancelStunSeconds); return; }
+            stateTime = Mathf.Max(0f, stateTime - .12f);
+            mouthOpen *= .6f;
+        }
         if (state == State.Feed) { StopFeeding(); Enter(State.Hunt); }
+        lastHurtTime = Time.time;
 
         if (state != State.Eating && state != State.DiveFall && state != State.Stuck && health.Fraction <= lastStaggerAt - staggerEvery)
         {
             lastStaggerAt = health.Fraction;
-            Stagger();
+            Stagger(staggerSeconds);
+            return;
         }
-        else if (state == State.Hunt && visible)
-            velocity += info.direction * (info.knockback > 0f ? info.knockback : 2f);
+        if (state == State.Hunt && visible)
+        {
+            // Getting shot makes it angry, not careful: it comes for you sooner.
+            nextAttack = Mathf.Min(nextAttack, Time.time + retaliateSeconds);
+            // Only a point-blank heavy hit (shotgun) still shoves it back.
+            KeyTarget t = KeyTarget.Current;
+            if (info.knockback >= 5f && t != null && Vector3.Distance(transform.position, t.EyePosition) < 4f)
+                velocity += info.direction * info.knockback * .5f;
+        }
     }
 
     public void SpitOut()
@@ -839,11 +925,12 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         if (victim != null) victim.Escaped(this);
         victim = null;
         PlayOneShot(screamClips, 1f);
-        Stagger();
+        Stagger(staggerSeconds);
     }
 
-    void Stagger()
+    void Stagger(float seconds)
     {
+        staggerFor = seconds;
         ReleaseVictim();
         SetTongue(false);
         StopFeeding();
@@ -1034,12 +1121,14 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
 
     void Enter(State next)
     {
+        if (next != State.Hunt) rushing = false;
         state = next;
         stateTime = 0f;
         switch (next)
         {
-            case State.SpearWindUp: case State.SpitWindUp: PlayOneShot(gurgleClips, 1f); break;
-            case State.BiteWindUp: case State.EatWindUp: case State.WhipWindUp: PlayOneShot(screamClips, 1f); break;
+            case State.SpearWindUp: case State.SpitWindUp: PlayOneShot(gurgleClips, 1f); windUpDamage = 0f; CallPack(); break;
+            case State.BiteWindUp: case State.EatWindUp: case State.WhipWindUp: PlayOneShot(screamClips, 1f); windUpDamage = 0f; CallPack(); break;
+            case State.DiveRise: CallPack(); break;
             case State.Hunt: nextAttack = Time.time + UnityEngine.Random.Range(attackCooldown.x, attackCooldown.y); break;
         }
     }
