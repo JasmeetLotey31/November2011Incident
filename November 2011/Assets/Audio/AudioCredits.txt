@@ -46,3 +46,17 @@ The gate and ejector cues combine close handling sounds from the loading session
 
 
 Impacts/Impact_Metal_0-2 <- Kenney "Impact Sounds" 1.0 (www.kenney.nl), CC0 1.0.
+
+Pistol/ and Keys/ (key horde rebuild):
+  Pistol_Fire_A-C      <- Fan_Round_01-03_With_Fall (CC0, black-powder revolver discharges; see credits above)
+  Flashlight_Click     <- Hammer_Lower_Soft (CC0)
+  Keys/Key_Step_A-B    <- Cylinder_Index_A-B (CC0)
+  Keys/Vent_Rattle     <- Ejector_Out (CC0)
+  Keys_Chant_*, Keys_Bark_*, Keys_Hurt, Keys_Death, Player_Reloading, Player_Hurt:
+    generated with the Windows speech synthesizer (Microsoft David / Zira) as placeholders;
+    keys' voices are pitched down in-game. Replace with recorded voices later.  Pistol/Player_Dodge  <- Fan_Palm_C (CC0)
+  Keys/Power_Cut       <- Final_Round_Ring (CC0)
+  Keys/Key_Finisher_Twist <- Thumb_Cock_B (CC0)
+  Pistol/Scrap_Pickup     <- Cartridge_Seat_C (CC0)
+  Keys/Key_Chew_A-B    <- Fan_Palm_A-B (CC0)
+  Keys/Key_Scream_A-C, Key_Gurgle, Key_Whisper, Pistol/Player_Bitten: generated (Windows speech synthesizer), placeholders

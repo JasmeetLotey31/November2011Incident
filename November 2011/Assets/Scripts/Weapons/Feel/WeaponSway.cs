@@ -8,7 +8,7 @@ using UnityEngine.InputSystem;
 /// - sprint carry: the gun lowers and tilts while really sprinting, and comes straight back up
 ///   when you fire or reload.
 /// Ported from the Western project (WesternPlayerGunplay's sway/bob maths and WesternSprintGunPose).
-/// Put it on a holder object between the camera and the gun (Camera → WeaponHolder → NailGun).
+/// Put it on a holder object between the camera and the gun (Camera → WeaponHolder → Sidearm).
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class WeaponSway : MonoBehaviour
@@ -16,8 +16,14 @@ public sealed class WeaponSway : MonoBehaviour
     [Header("References (found automatically)")]
     [SerializeField] Transform player;
     [SerializeField] CharacterController body;
-    [Tooltip("Gun whose shots and reloads interrupt the sprint carry.")]
-    [SerializeField] NailGun gun;
+    [Tooltip("Gun whose shots and reloads interrupt the sprint carry, and whose aim drives the sights pose.")]
+    [SerializeField] Sidearm gun;
+
+    [Header("Aim down sights")]
+    [Tooltip("Holder position while fully aimed (sights on the screen centre).")]
+    [SerializeField] Vector3 aimLocalPosition = new Vector3(0f, -0.075f, 0.34f);
+    [Tooltip("Sway and bob left while fully aimed.")]
+    [Range(0, 1)] [SerializeField] float aimSwayScale = .2f;
 
     [Header("Look sway")]
     [Range(0, 2)] [SerializeField] float swayIntensity = 1f;
@@ -62,20 +68,27 @@ public sealed class WeaponSway : MonoBehaviour
         restRotation = transform.localRotation;
         if (body == null) body = GetComponentInParent<CharacterController>();
         if (player == null) player = body != null ? body.transform : transform.root;
-        if (gun == null) gun = GetComponentInChildren<NailGun>();
+        allGuns = GetComponentsInChildren<Sidearm>(true);
+        slots = GetComponent<WeaponSlots>();
+        if (gun == null && allGuns.Length > 0) gun = allGuns[0];
         sprintAction = InputSystem.actions.FindAction("Player/Sprint");
         moveAction = InputSystem.actions.FindAction("Player/Move");
     }
 
+    Sidearm[] allGuns;
+    WeaponSlots slots;
+    /// <summary>The gun in hand (follows weapon switching).</summary>
+    Sidearm Current => slots != null && slots.Active != null ? slots.Active : gun;
+
     void OnEnable()
     {
         sampled = false;
-        if (gun != null) { gun.Fired += HoldRaised; gun.DryFired += HoldRaised; gun.ReloadStarted += HoldRaised; }
+        foreach (Sidearm g in allGuns) { g.Fired += HoldRaised; g.DryFired += HoldRaised; g.ReloadStarted += HoldRaised; }
     }
 
     void OnDisable()
     {
-        if (gun != null) { gun.Fired -= HoldRaised; gun.DryFired -= HoldRaised; gun.ReloadStarted -= HoldRaised; }
+        foreach (Sidearm g in allGuns) { g.Fired -= HoldRaised; g.DryFired -= HoldRaised; g.ReloadStarted -= HoldRaised; }
         transform.localPosition = restPosition;
         transform.localRotation = restRotation;
     }
@@ -136,7 +149,7 @@ public sealed class WeaponSway : MonoBehaviour
         // --- sprint carry ---
         bool sprintHeld = sprintAction != null && sprintAction.IsPressed();
         bool moving = moveAction == null || moveAction.ReadValue<Vector2>().sqrMagnitude > .01f;
-        bool reloading = gun != null && gun.IsReloading;
+        bool reloading = Current != null && Current.IsReloading;
         bool wantsSprint = sprintHeld && moving && grounded && speed > walkSpeed * 1.04f &&
                            !reloading && Time.timeAsDouble >= holdUntil;
         sprintBlend = Mathf.MoveTowards(sprintBlend, wantsSprint ? 1f : 0f,
@@ -144,7 +157,9 @@ public sealed class WeaponSway : MonoBehaviour
         float carry = sprintBlend * sprintBlend * (3f - 2f * sprintBlend);
 
         // --- present ---
-        float scale = swayIntensity * (reloading ? reloadSwayScale : 1f);
+        float aimT = Current != null ? Current.AimAmount : 0f;
+        aimT = aimT * aimT * (3f - 2f * aimT);
+        float scale = swayIntensity * (reloading ? reloadSwayScale : 1f) * Mathf.Lerp(1f, aimSwayScale, aimT);
         float motion = movement * (1f - carry); // the sprint carry replaces the walk bob
         float x = Mathf.Sin(gaitPhase), y = Mathf.Cos(gaitPhase * 2f);
 
@@ -157,7 +172,8 @@ public sealed class WeaponSway : MonoBehaviour
             lookOffset.y + x * .32f * motion,
             lookOffset.y * .35f + (x * .45f - strafe * .7f) * motion) * scale);
 
-        transform.localPosition = restPosition + restRotation * (swayPosition + carryOffset * carry);
+        Vector3 basePosition = Vector3.Lerp(restPosition, aimLocalPosition, aimT);
+        transform.localPosition = basePosition + restRotation * (swayPosition + carryOffset * carry);
         transform.localRotation = restRotation * swayRotation *
                                   Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(carryAngles), carry);
     }

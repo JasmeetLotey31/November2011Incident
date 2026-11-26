@@ -26,6 +26,12 @@ public class FirstPersonController : MonoBehaviour
     [SerializeField] float gamepadLookSpeed = 180f;
     [SerializeField] float maxPitch = 85f;
 
+    /// <summary>
+    /// Multiplies walk and sprint speed; other systems set it (e.g. 0.6 while carrying a key,
+    /// 0 for a moment when grabbed). 1 = normal.
+    /// </summary>
+    public float SpeedMultiplier { get; set; } = 1f;
+
     CharacterController controller;
     InputAction moveAction, lookAction, jumpAction, sprintAction;
     float pitch;
@@ -76,7 +82,7 @@ public class FirstPersonController : MonoBehaviour
     void Move()
     {
         Vector2 input = Vector2.ClampMagnitude(moveAction.ReadValue<Vector2>(), 1f);
-        float speed = sprintAction.IsPressed() ? sprintSpeed : walkSpeed;
+        float speed = (sprintAction.IsPressed() ? sprintSpeed : walkSpeed) * Mathf.Max(0f, SpeedMultiplier);
         Vector3 horizontal = (transform.right * input.x + transform.forward * input.y) * speed;
 
         if (controller.isGrounded)
