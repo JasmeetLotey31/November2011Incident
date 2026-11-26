@@ -2,6 +2,9 @@
 //  - Vertex snapping: vertices jump to a coarse screen grid -> the classic PS1 "wobble".
 //  - Affine texture mapping: textures warp across big polygons like the PS1 (no perspective fix).
 //  - Per-vertex (Gouraud) lighting from the main light + ambient, no specular.
+//  - Point/spot lights (flashlight, emergency lights) per pixel, so they still light big flat
+//    polygons in dark interiors (Forward+ cluster loop and plain Forward both supported).
+//  - Optional glow (_EmissionColor; scripts can drive it with a MaterialPropertyBlock).
 //  - Fog, GPU instancing, SRP Batcher compatible.
 // Use point-filtered, small textures (Filter Mode: Point, no mipmaps).
 Shader "Retro/PS1 Lit"
@@ -13,6 +16,7 @@ Shader "Retro/PS1 Lit"
         _SnapResolution ("Vertex Snap Grid (width, height)", Vector) = (320, 240, 0, 0)
         _Affine ("Texture Warp (0 = correct, 1 = PS1 affine)", Range(0, 1)) = 1
         _Lighting ("Lighting (0 = unlit, 1 = lit)", Range(0, 1)) = 1
+        [HDR] _EmissionColor ("Glow", Color) = (0, 0, 0, 0)
         [Toggle(_VERTEX_COLORS)] _VertexColors ("Use mesh colours (per-triangle colour models)", Float) = 0
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
     }
@@ -30,6 +34,7 @@ Shader "Retro/PS1 Lit"
             float4 _SnapResolution;
             half _Affine;
             half _Lighting;
+            half4 _EmissionColor;
         CBUFFER_END
         TEXTURE2D(_BaseMap);
         SAMPLER(sampler_BaseMap);
@@ -59,6 +64,9 @@ Shader "Retro/PS1 Lit"
             #pragma multi_compile_instancing
             #pragma multi_compile_fog
             #pragma shader_feature_local _VERTEX_COLORS
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
+            #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
             struct Attributes
@@ -75,10 +83,30 @@ Shader "Retro/PS1 Lit"
                 float4 positionCS : SV_POSITION;
                 float2 uv : TEXCOORD0;                 // perspective-correct
                 noperspective float2 uvAffine : TEXCOORD1;   // PS1-style affine
-                half3 light : TEXCOORD2;               // Gouraud lighting
+                half3 light : TEXCOORD2;               // Gouraud lighting (main light + ambient)
                 half fog : TEXCOORD3;
+                float3 positionWS : TEXCOORD4;         // for point/spot lights
+                half3 normalWS : TEXCOORD5;
+                half3 tint : TEXCOORD6;                // mesh colours (or white)
                 UNITY_VERTEX_OUTPUT_STEREO
             };
+
+            // Point/spot lights (flashlight, emergency lights), Lambert only like the main light.
+            half3 AdditionalLighting(float3 positionWS, half3 normalWS, float4 positionCS)
+            {
+                half3 sum = 0;
+            #if defined(_ADDITIONAL_LIGHTS) || defined(_ADDITIONAL_LIGHTS_VERTEX)
+                InputData inputData = (InputData)0;          // the light loop macro reads these
+                inputData.positionWS = positionWS;
+                inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(positionCS);
+                uint lightsCount = GetAdditionalLightsCount();
+                LIGHT_LOOP_BEGIN(lightsCount)
+                    Light light = GetAdditionalLight(lightIndex, positionWS, half4(1, 1, 1, 1));
+                    sum += light.color * (light.distanceAttenuation * light.shadowAttenuation) * saturate(dot(normalWS, light.direction));
+                LIGHT_LOOP_END
+            #endif
+                return sum;
+            }
 
             Varyings vert(Attributes v)
             {
@@ -90,11 +118,13 @@ Shader "Retro/PS1 Lit"
                 half3 normalWS = TransformObjectToWorldNormal(v.normalOS);
 
                 Light mainLight = GetMainLight();
-                half3 lit = mainLight.color * saturate(dot(normalWS, mainLight.direction)) + SampleSH(normalWS);
-                o.light = lerp(half3(1, 1, 1), lit, _Lighting);
+                o.light = mainLight.color * saturate(dot(normalWS, mainLight.direction)) + SampleSH(normalWS);
+                o.tint = half3(1, 1, 1);
                 #if defined(_VERTEX_COLORS)
-                    o.light *= SRGBToLinear(v.color.rgb);   // Blender exports sRGB colours
+                    o.tint = SRGBToLinear(v.color.rgb);   // Blender exports sRGB colours
                 #endif
+                o.positionWS = positionWS;
+                o.normalWS = normalWS;
 
                 float2 uv = TRANSFORM_TEX(v.uv, _BaseMap);
                 o.uv = uv;
@@ -108,7 +138,9 @@ Shader "Retro/PS1 Lit"
             {
                 float2 uv = lerp(i.uv, i.uvAffine, _Affine);
                 half4 col = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv) * _BaseColor;
-                col.rgb *= i.light;
+                half3 lit = i.light + AdditionalLighting(i.positionWS, normalize(i.normalWS), i.positionCS);
+                col.rgb *= lerp(half3(1, 1, 1), lit, _Lighting) * i.tint;
+                col.rgb += _EmissionColor.rgb;
                 col.rgb = MixFog(col.rgb, i.fog);
                 return half4(col.rgb, 1);
             }
