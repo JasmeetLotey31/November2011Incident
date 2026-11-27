@@ -15,6 +15,7 @@ using UnityEngine.InputSystem;
 /// - INJURED: bites leave lasting injuries: ARM (shaky aim, slow reloads), LEG (limp),
 ///   SIDE (less max health). They stay for the rest of the run.
 /// - BLEEDING: after any wound you bleed for a while, and the keys smell it (frenzy).
+/// - PINNED: a key slammed you down and is on top of you (see <see cref="PlayerPinned"/>).
 /// - SPLATTERED: gore across your eyes. SCREAMED AT: your aim shakes.
 /// Put it on the player root.
 /// </summary>
@@ -43,6 +44,8 @@ public sealed class PlayerEaten : MonoBehaviour
     [SerializeField] AudioClip escapeClip;
 
     public bool IsPulled => puller != null;
+    public PlayerPinned Pinned => pinned;
+    public bool IsPinned => pinned != null && pinned.IsPinned;
     public bool IsEaten => eater != null;
     public KeyFlyer Eater => eater;
     public bool IsBleeding => Time.time < bleedingUntil;
@@ -67,14 +70,18 @@ public sealed class PlayerEaten : MonoBehaviour
     /// <summary>0..1 how much gore is over your eyes.</summary>
     public float Splatter01 => Mathf.Clamp01((splatterUntil - Time.time) / 2.5f);
     /// <summary>Knocked down or nearly dead, and not already caught: a key can swallow you.</summary>
-    public bool CanBeExecuted => !health.IsDead && !IsEaten && !IsPulled && Time.time >= immuneUntil
+    public bool CanBeExecuted => !health.IsDead && !IsEaten && !IsPulled && !IsPinned && Time.time >= immuneUntil
                                  && (IsDown || health.Fraction <= executeBelow);
+    /// <summary>Free to be slammed down and pinned (not caught, not mid-dash or mid-kick).</summary>
+    public bool CanBeGrabbed => !health.IsDead && !IsEaten && !IsPulled && !IsPinned && Time.time >= immuneUntil
+                                && (closeCombat == null || (!closeCombat.IsDodging && !closeCombat.IsGrabbed && !closeCombat.IsKicking));
 
     public event Action Pulled, Eaten, Escaped_, BittenEvent;
 
     Health health;
     CharacterController body;
     PlayerCloseCombat closeCombat;
+    PlayerPinned pinned;
     CameraKick cameraKick;
     KeyFlyer puller, eater;
     readonly List<Injury> injuries = new List<Injury>();
@@ -89,6 +96,8 @@ public sealed class PlayerEaten : MonoBehaviour
         health = GetComponent<Health>();
         body = GetComponent<CharacterController>();
         closeCombat = GetComponent<PlayerCloseCombat>();
+        pinned = GetComponent<PlayerPinned>();
+        if (pinned == null) pinned = gameObject.AddComponent<PlayerPinned>();
         Camera view = GetComponentInChildren<Camera>();
         if (view != null) { cameraKick = view.GetComponent<CameraKick>(); cam = view.transform; camBase = cam.localPosition; }
         pryAction = new InputAction("Pry", InputActionType.Button);
@@ -115,13 +124,13 @@ public sealed class PlayerEaten : MonoBehaviour
 
     // ---------------- hits ----------------
 
-    /// <summary>A key's attack connects. Returns false if you dashed through it.</summary>
+    /// <summary>A key's attack connects. Returns false if you dashed through it (or one has you pinned: the rest wait).</summary>
     /// <param name="knockback">Shove speed (m/s, fading over .25 s).</param>
     /// <param name="injuryChance">Chance it tears off a lasting injury.</param>
     /// <param name="knockdownSeconds">Puts you on the floor for this long (0 = stays standing).</param>
     public bool Hit(float damage, GameObject source, Vector3 direction, float knockback, float injuryChance, float knockdownSeconds)
     {
-        if (health.IsDead || (closeCombat != null && closeCombat.IsDodging)) return false;
+        if (health.IsDead || IsPinned || (closeCombat != null && closeCombat.IsDodging)) return false;
         LastHitTime = Time.time;
         Vector3 flat = new Vector3(direction.x, 0f, direction.z);
         if (flat.sqrMagnitude < .001f) flat = -transform.forward;
@@ -133,6 +142,18 @@ public sealed class PlayerEaten : MonoBehaviour
         if (knockback > 0f) StartCoroutine(PushRoutine(flat, knockback, .25f));
         if (knockdownSeconds > 0f) Knockdown(knockdownSeconds, flat);
         return true;
+    }
+
+    /// <summary>A bite that can't be dodged (the key is already on top of you).</summary>
+    public void Wound(float damage, GameObject source, float injuryChance)
+    {
+        if (health.IsDead) return;
+        LastHitTime = Time.time;
+        if (injuryChance > 0f && UnityEngine.Random.value < injuryChance) AddInjury();
+        if (cameraKick != null) cameraKick.Play(2f, 3f, ++kickCount);
+        if (audioSource != null && bittenClip != null) audioSource.PlayOneShot(bittenClip, .9f);
+        BloodVFX.Spray(transform.position + Vector3.up * .6f, Vector3.up + UnityEngine.Random.insideUnitSphere * .5f, BloodVFX.HumanBlood, 1.8f);
+        health.TakeDamage(new DamageInfo { amount = damage, point = transform.position + Vector3.up * .8f, direction = Vector3.down, source = source });
     }
 
     public void Knockdown(float seconds, Vector3 fromDirection)
@@ -175,7 +196,7 @@ public sealed class PlayerEaten : MonoBehaviour
 
     public bool BeginPull(KeyFlyer key)
     {
-        if (IsPulled || IsEaten || health.IsDead || Time.time < immuneUntil) return false;
+        if (IsPulled || IsEaten || IsPinned || health.IsDead || Time.time < immuneUntil) return false;
         if (closeCombat != null && closeCombat.IsDodging) return false; // dashed through it
         puller = key;
         downUntil = 0f; // yanked off the floor
@@ -196,7 +217,7 @@ public sealed class PlayerEaten : MonoBehaviour
 
     public bool BeginEaten(KeyFlyer key)
     {
-        if (IsEaten || health.IsDead || Time.time < immuneUntil) return false;
+        if (IsEaten || IsPinned || health.IsDead || Time.time < immuneUntil) return false;
         if (closeCombat != null && closeCombat.IsDodging) return false;
         puller = null;
         eater = key;
@@ -293,14 +314,16 @@ public sealed class PlayerEaten : MonoBehaviour
     void LateUpdate()
     {
         if (cam == null) return;
-        // On the floor: the eye line drops and rolls to one side. Screamed at: the view shakes.
-        float want = IsDown && !health.IsDead ? 1f : 0f;
+        // On the floor: the eye line drops and rolls to one side (less while pinned, so you can see
+        // the jaws). Screamed at: the view shakes.
+        float want = (IsDown || IsPinned) && !health.IsDead ? 1f : 0f;
+        float roll = IsPinned ? .3f : 1f;
         downAmount = Mathf.MoveTowards(downAmount, want, Time.deltaTime * (want > downAmount ? 7f : 2.8f));
         float e = downAmount * downAmount * (3f - 2f * downAmount);
         cam.localPosition = camBase + Vector3.down * (downEyeDrop * e);
         float shake = IsScreamedAt ? 1.4f : 0f;
         if (e > .001f || shake > 0f)
             cam.localRotation *= Quaternion.Euler(Mathf.Sin(Time.time * 23f) * shake, Mathf.Sin(Time.time * 19f + 1f) * shake,
-                                                  rollSide * downRoll * e + Mathf.Sin(Time.time * 17f) * shake);
+                                                  rollSide * downRoll * roll * e +Mathf.Sin(Time.time * 17f) * shake);
     }
 }

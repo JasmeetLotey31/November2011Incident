@@ -93,6 +93,8 @@ public sealed class KeyHordeDirector : MonoBehaviour
     };
     [SerializeField] string escapeRadio = "POD 3 IS READY. You made it. ...they're still coming.";
 
+    /// <summary>The director running the current level (null if none).</summary>
+    public static KeyHordeDirector Active { get; private set; }
     public Phase Current { get; private set; }
     public float Intensity { get; private set; }
     public float SurvivedSeconds { get; private set; }
@@ -112,6 +114,7 @@ public sealed class KeyHordeDirector : MonoBehaviour
 
     void Awake()
     {
+        Active = this;
         Difficulty.Level = difficulty;
         Difficulty.Preset p = Difficulty.Current;
         KeyHorde.MaxRushers = p.maxRushers;
@@ -141,6 +144,7 @@ public sealed class KeyHordeDirector : MonoBehaviour
 
     void OnDestroy()
     {
+        if (Active == this) Active = null;
         KeyTarget target = KeyTarget.Current;
         if (target != null && target.Health != null) target.Health.Damaged -= OnPlayerDamaged;
     }

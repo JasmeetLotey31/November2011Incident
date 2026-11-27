@@ -6,7 +6,8 @@ using UnityEngine;
 /// - only a couple of keys may rush at once ("rush tokens"); the rest stalk and spread out
 ///   around you to cut off escape routes;
 /// - when you reload or run dry, more tokens open up and the pack charges;
-/// - a key that spots you calls the others nearby (they converge on your position).
+/// - a key that spots you calls the others nearby (they converge on your position);
+/// - while one has you pinned, the others wait their turn.
 /// </summary>
 public static class KeyHorde
 {
@@ -18,7 +19,7 @@ public static class KeyHorde
     public static int BlackoutExtraRushers = 2;
 
     /// <summary>Flyers allowed to dive at once (more when you're vulnerable or the lights are out).</summary>
-    public static int MaxDivers = 2;
+    public static int MaxDivers = 3;
 
     static readonly List<KeyAlien> members = new List<KeyAlien>();
     static readonly List<KeyAlien> rushers = new List<KeyAlien>();
@@ -47,6 +48,7 @@ public static class KeyHorde
         divers.RemoveAll(d => d == null || d.IsDead || !d.IsDiving);
         KeyTarget target = KeyTarget.Current;
         PlayerEaten prey = target != null ? target.GetComponent<PlayerEaten>() : null;
+        if (prey != null && prey.IsPinned) return false; // one has you pinned: the rest circle and wait
         int allowed = MaxDivers + (target != null && target.IsVulnerable ? 1 : 0) + (EmergencyLight.IsBlackout ? 1 : 0) + (prey != null && prey.IsBleeding ? 1 : 0);
         if (divers.Count >= allowed) return false;
         divers.Add(f);
@@ -115,7 +117,7 @@ public static class KeyHorde
         rushers.Clear();
         flyers.Clear();
         divers.Clear();
-        MaxDivers = 2;
+        MaxDivers = 3;
         MaxRushers = 3;
         VulnerableExtraRushers = 5;
         BlackoutExtraRushers = 2;

@@ -32,6 +32,13 @@ public sealed class BlackBoxHUD : MonoBehaviour
     Vector2[] goreHome;
     RawImage downDark;
     Text downText, diveText;
+    PlayerPinned pinned;
+    RectTransform pinPanel;
+    RawImage pinDark, pinTeeth;
+    Text pinMash, pinLeft, pinRight, pinStab, pinWinText;
+    Image pinShoveFill, pinTimerFill, pinStabFill;
+    float pinEndedAt = -10f;
+    bool pinWon;
     static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
     PlayerCloseCombat closeCombat;
     Image staminaFill, grabProgressFill, grabTimerFill;
@@ -120,8 +127,10 @@ public sealed class BlackBoxHUD : MonoBehaviour
             goreBlind[i].color = new Color(.55f, .42f, .12f, Mathf.Clamp01(gore * 1.6f) * .97f);
         }
 
+        bool isPinned = UpdatePinned(now);
+
         // Knocked down: the world goes dark at the edges; get up.
-        bool down = eaten != null && eaten.IsDown && !inMouth;
+        bool down = eaten != null && eaten.IsDown && !inMouth && !isPinned;
         downDark.gameObject.SetActive(down);
         downText.gameObject.SetActive(down);
         if (down)
@@ -135,7 +144,7 @@ public sealed class BlackBoxHUD : MonoBehaviour
         if (view != null)
             foreach (KeyFlyer k in KeyHorde.Flyers)
                 if (k != null && k.IsAttackingDive && Vector3.Distance(Flat(k.DiveTarget), Flat(view.transform.position)) < 3.5f) { above = true; break; }
-        diveText.gameObject.SetActive(above && !inMouth);
+        diveText.gameObject.SetActive(above && !inMouth && !isPinned);
         if (above)
         {
             diveText.color = Mathf.Repeat(now * 8f, 1f) < .5f ? HudKit.Danger : Color.white;
@@ -172,6 +181,71 @@ public sealed class BlackBoxHUD : MonoBehaviour
         }
         else injuryText.gameObject.SetActive(false);
     }
+    /// <summary>Pinned: fangs closing in with the pressure, which key to hit next, the shove bar, then STAB.</summary>
+    bool UpdatePinned(float now)
+    {
+        if (pinned == null && eaten != null && eaten.Pinned != null)
+        {
+            pinned = eaten.Pinned;
+            pinned.Ended += won => { pinEndedAt = Time.time; pinWon = won; };
+        }
+        bool on = pinned != null && pinned.IsPinned && deathAt < 0f;
+        pinPanel.gameObject.SetActive(on);
+        pinDark.gameObject.SetActive(on);
+        pinTeeth.gameObject.SetActive(on);
+
+        // A beat after it ends: "STABBED IT!" or nothing (the bite says enough).
+        float sinceEnd = Time.time - pinEndedAt;
+        bool showWin = !on && pinWon && sinceEnd < .8f && deathAt < 0f;
+        pinWinText.gameObject.SetActive(showWin);
+        if (showWin)
+        {
+            pinWinText.rectTransform.localScale = Vector3.one * (1.4f - .4f * Mathf.Clamp01(sinceEnd / .15f));
+            pinWinText.color = new Color(1f, .85f, .3f, 1f - Mathf.Clamp01((sinceEnd - .5f) / .3f));
+        }
+        if (!on) return false;
+
+        float pressure = pinned.Pressure;
+        float bit = Mathf.Clamp01(1f - (Time.time - pinned.LastBiteTime) / .4f);
+        float shoved = Mathf.Clamp01(1f - (Time.time - pinned.LastShoveTime) / .12f);
+        bool stab = pinned.StabReady;
+
+        pinTeeth.rectTransform.localScale = Vector3.one * (Mathf.Lerp(1.75f, 1.02f, pressure) + shoved * .05f - bit * .12f);
+        pinTeeth.rectTransform.anchoredPosition = new Vector2(Mathf.Sin(now * 31f), Mathf.Sin(now * 27f)) * (4f + pressure * 16f + bit * 20f);
+        pinTeeth.color = stab ? new Color(1f, 1f, 1f, .35f) : Color.white;
+        pinDark.color = new Color(.3f, 0f, 0f, .25f + .35f * pressure + .3f * bit);
+
+        pinMash.gameObject.SetActive(!stab);
+        pinLeft.gameObject.SetActive(!stab);
+        pinRight.gameObject.SetActive(!stab);
+        pinStab.gameObject.SetActive(stab);
+        pinStabFill.transform.parent.gameObject.SetActive(stab);
+        if (stab)
+        {
+            pinStab.color = Mathf.Repeat(now * 10f, 1f) < .5f ? new Color(1f, .85f, .3f, 1f) : Color.white;
+            pinStab.rectTransform.localScale = Vector3.one * (1.1f + .12f * Mathf.Sin(now * 30f));
+            pinStabFill.fillAmount = pinned.StabWindow01;
+        }
+        else
+        {
+            int next = pinned.NextSide;
+            LightKey(pinLeft, next != 1, now);
+            LightKey(pinRight, next != 0, now);
+            pinMash.color = Color.Lerp(Color.white, HudKit.Danger, Mathf.PingPong(now * 7f, 1f));
+        }
+        pinShoveFill.fillAmount = pinned.Shove;
+        pinShoveFill.color = Color.Lerp(Color.white, new Color(1f, .85f, .3f, 1f), pinned.Shove);
+        pinTimerFill.fillAmount = 1f - pinned.Elapsed01;
+        pinPanel.anchoredPosition = new Vector2(Mathf.Sin(now * 53f), Mathf.Sin(now * 41f)) * (2f + 6f * pressure);
+        return true;
+    }
+
+    static void LightKey(Text key, bool lit, float now)
+    {
+        key.color = lit ? Color.white : new Color(.5f, .5f, .5f, .5f);
+        key.rectTransform.localScale = Vector3.one * (lit ? 1.15f + .08f * Mathf.Sin(now * 25f) : .85f);
+    }
+
     void OnDied() => deathAt = Time.unscaledTime;
 
     public void ShowRadio(string line)
@@ -444,6 +518,57 @@ public sealed class BlackBoxHUD : MonoBehaviour
         downText.text = "YOU'RE DOWN!     [ALT] ROLL UP";
         HudKit.Place(downText.rectTransform, new Vector2(.5f, .5f), new Vector2(0f, -170f), new Vector2(1200f, 60f));
         downText.gameObject.SetActive(false);
+
+        // Pinned: red dark, fangs closing in, A / D to shove, shove bar, time bar, then [V] STAB!
+        pinDark = Rect<RawImage>("Pin Dark", t);
+        HudKit.Stretch(pinDark.rectTransform);
+        pinDark.texture = HudKit.Vignette();
+        pinDark.gameObject.SetActive(false);
+        pinTeeth = Rect<RawImage>("Pin Teeth", t);
+        HudKit.Place(pinTeeth.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(2100f, 2100f));
+        pinTeeth.texture = HudKit.TeethRing();
+        pinTeeth.gameObject.SetActive(false);
+        pinPanel = HudKit.Rect("Pinned", t);
+        HudKit.Place(pinPanel, new Vector2(.5f, .5f), Vector2.zero, new Vector2(900f, 700f));
+        pinMash = HudKit.Txt("Shove", pinPanel, 46, TextAnchor.MiddleCenter);
+        pinMash.text = "IT'S ON YOU!  SHOVE IT OFF!";
+        HudKit.Place(pinMash.rectTransform, new Vector2(.5f, .5f), new Vector2(0f, -150f), new Vector2(1200f, 60f));
+        pinLeft = HudKit.Txt("Left", pinPanel, 84, TextAnchor.MiddleCenter);
+        pinLeft.text = "[A]";
+        HudKit.Place(pinLeft.rectTransform, new Vector2(.5f, .5f), new Vector2(-150f, -235f), new Vector2(220f, 100f));
+        pinRight = HudKit.Txt("Right", pinPanel, 84, TextAnchor.MiddleCenter);
+        pinRight.text = "[D]";
+        HudKit.Place(pinRight.rectTransform, new Vector2(.5f, .5f), new Vector2(150f, -235f), new Vector2(220f, 100f));
+        pinStab = HudKit.Txt("Stab", pinPanel, 110, TextAnchor.MiddleCenter);
+        pinStab.text = "[V]  STAB!";
+        HudKit.Place(pinStab.rectTransform, new Vector2(.5f, .5f), new Vector2(0f, -200f), new Vector2(1000f, 130f));
+        Image stabBack = HudKit.Img("Stab Window Back", pinPanel, HudKit.Panel);
+        HudKit.Place(stabBack.rectTransform, new Vector2(.5f, .5f), new Vector2(0f, -280f), new Vector2(380f, 14f));
+        pinStabFill = HudKit.Img("Stab Window", stabBack.transform, new Color(1f, .85f, .3f, 1f));
+        HudKit.Stretch(pinStabFill.rectTransform, 2f);
+        pinStabFill.sprite = HudKit.White();
+        pinStabFill.type = Image.Type.Filled;
+        pinStabFill.fillMethod = Image.FillMethod.Horizontal;
+        pinStabFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        Image shoveBack = HudKit.Img("Shove Back", pinPanel, HudKit.Panel);
+        HudKit.Place(shoveBack.rectTransform, new Vector2(.5f, .5f), new Vector2(0f, -310f), new Vector2(440f, 22f));
+        pinShoveFill = HudKit.Img("Shove Fill", shoveBack.transform, Color.white);
+        HudKit.Stretch(pinShoveFill.rectTransform, 3f);
+        pinShoveFill.sprite = HudKit.White();
+        pinShoveFill.type = Image.Type.Filled;
+        pinShoveFill.fillMethod = Image.FillMethod.Horizontal;
+        Image pinTimeBack = HudKit.Img("Pin Time Back", pinPanel, HudKit.Panel);
+        HudKit.Place(pinTimeBack.rectTransform, new Vector2(.5f, .5f), new Vector2(0f, -334f), new Vector2(440f, 8f));
+        pinTimerFill = HudKit.Img("Pin Time", pinTimeBack.transform, HudKit.Danger);
+        HudKit.Stretch(pinTimerFill.rectTransform, 1f);
+        pinTimerFill.sprite = HudKit.White();
+        pinTimerFill.type = Image.Type.Filled;
+        pinTimerFill.fillMethod = Image.FillMethod.Horizontal;
+        pinPanel.gameObject.SetActive(false);
+        pinWinText = HudKit.Txt("Stabbed", t, 80, TextAnchor.MiddleCenter);
+        pinWinText.text = "STABBED IT!   [V] KICK";
+        HudKit.Place(pinWinText.rectTransform, new Vector2(.5f, .5f), new Vector2(0f, 120f), new Vector2(1200f, 100f));
+        pinWinText.gameObject.SetActive(false);
 
         // Blade dive incoming.
         diveText = HudKit.Txt("Dive", t, 56, TextAnchor.MiddleCenter);

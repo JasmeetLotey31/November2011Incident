@@ -193,6 +193,8 @@ public sealed class Sidearm : MonoBehaviour
         // A key has hold of you, or you're mid-bash: no shooting.
         if (closeCombat != null && (closeCombat.IsGrabbed || closeCombat.IsKicking)) canAct = false;
         if (Time.time - bashStartedAt < BashSeconds) canAct = false;
+        // Pinned: both hands are holding its jaws off.
+        if (injuries != null && injuries.IsPinned) canAct = false;
 
         bool wantsAim = canAct && aimAction.IsPressed() && !IsSprinting();
         AimAmount = Mathf.MoveTowards(AimAmount, wantsAim ? 1f : 0f, Time.deltaTime / Mathf.Max(.01f, aimBlendSeconds));

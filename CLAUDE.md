@@ -1,6 +1,7 @@
 # November 2011 Incident
 
-Unity 6 game (editor **6000.0.46f1**) built by two people, each with their own Claude Code.
+Unity 6 game (editor **6000.6.11f1**, URP) built by two people, each with their own Claude Code.
+Both machines must use that exact editor version (Unity Hub → Installs).
 Git + GitHub is the source of truth: https://github.com/JasmeetLotey31/November2011Incident (branch `main`).
 
 - The Unity project is the `November 2011/` subfolder, not the repo root. Pass
@@ -8,6 +9,38 @@ Git + GitHub is the source of truth: https://github.com/JasmeetLotey31/November2
 - Unity tooling: Unity CLI (`unity`) + the `unity@unity-agent-plugin` Claude plugin. Drive the open
   Editor with `unity command ...` (via the `com.unity.pipeline` package) instead of hand-editing
   `.unity` / `.prefab` YAML.
+
+## Art style: PS1 retro, low poly
+
+Everything in the game should look like a PlayStation 1 game. Reference asset: the hand-made key
+(`ArtSource/FaceKey/FaceByMyself.blend`, textured version `FaceByMyself_Textured.blend`,
+in Unity `Assets/Models/FaceKeyPS1/`).
+
+- **Models:** a few hundred triangles per prop, chunky faceted shapes, flat shading.
+  Many copies of props will be on screen; keep counts low.
+- **Textures: hand-painted-looking pixel art.** One small atlas per model (256x256 for a prop,
+  512x512 for a character), point-filtered. Painted from the geometry
+  (`ArtSource/FaceKey/build_pixel_key.py`, `ArtSource/Astronaut/build_pixel_astro.py`):
+  warm limited colour ramps, light from the top-left (back faces lit like the front), **smooth
+  shading in a few soft steps - no dither/halftone patterns**, soft irregular light/dark blotches
+  like brushwork, and only a soft 1-px darker line on really sharp edges (no black outlines, no
+  glints). Detail (control panels, hoses, patches, seams) is painted in by 3D position. Picture
+  details (faces) are pixelated images (~128 px, 64 colours, no dithering).
+  No normal maps, no PBR metal/roughness maps. It should look hand-made, not generated.
+- **Unity import:** Filter Mode **Point**, mipmaps **off**, compression **none**, max size = actual size.
+- **Materials:** use the shader **`Retro/PS1 Lit`** (`Assets/Shaders/Retro/PS1Lit.shader`) for
+  everything: vertex snapping (wobble), affine texture warp, per-vertex lighting, fog, instancing.
+  Tweak per material: Vertex Snap Grid, Texture Warp (lower it on big flat polygons), Lighting,
+  and turn on **Use mesh colours** for per-triangle-colour models.
+  GPU instancing on. Don't use Built-in-pipeline shader packs: this project is URP and they render
+  nothing (the "Retro 3D Shader Pack" was removed for that reason; a copy is in G:\Git\RemovedAssets).
+- **Screen look** (already set up): `PC_RPAsset`/`Mobile_RPAsset` render scale 0.25 with Point
+  upscaling, no MSAA, SSAO off, and a `PS1 Screen` Full Screen Pass on both renderers
+  (`Assets/Materials/Retro/PS1_Screen.mat`: colour levels 32 + PS1 4x4 dither). Scene fog: linear.
+- **Before exporting from Blender:** apply scale (Ctrl+A, never leave a negative scale), make
+  normals point outward (Edit Mode, select all, Shift+N), and save in Object Mode.
+- Blender work: hand-made source `.blend` files stay untouched. Scripts write `*_Textured.blend`
+  and export FBX into `Assets/Models/<Name>/` (see `ArtSource/FaceKey/*.py` for the pattern).
 
 ## One-time setup on each machine (after cloning)
 

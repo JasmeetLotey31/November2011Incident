@@ -89,7 +89,7 @@ public class FirstPersonController : MonoBehaviour
         {
             // Small downward push keeps the controller snapped to slopes and steps.
             if (verticalVelocity < 0f) verticalVelocity = -2f;
-            if (jumpAction.WasPressedThisFrame())
+            if (jumpAction.WasPressedThisFrame() && SpeedMultiplier > 0f) // no jumping while held / down
                 verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
         verticalVelocity += gravity * Time.deltaTime;
