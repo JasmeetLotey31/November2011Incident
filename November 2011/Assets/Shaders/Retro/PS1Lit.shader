@@ -5,6 +5,7 @@
 //  - Point/spot lights (flashlight, emergency lights) per pixel, so they still light big flat
 //    polygons in dark interiors (Forward+ cluster loop and plain Forward both supported).
 //  - Optional glow (_EmissionColor; scripts can drive it with a MaterialPropertyBlock).
+//  - Lighting capped at Max Light (default 1.5x) so nothing burns out to white up close.
 //  - Fog, GPU instancing, SRP Batcher compatible.
 // Use point-filtered, small textures (Filter Mode: Point, no mipmaps).
 Shader "Retro/PS1 Lit"
@@ -16,6 +17,7 @@ Shader "Retro/PS1 Lit"
         _SnapResolution ("Vertex Snap Grid (width, height)", Vector) = (320, 240, 0, 0)
         _Affine ("Texture Warp (0 = correct, 1 = PS1 affine)", Range(0, 1)) = 1
         _Lighting ("Lighting (0 = unlit, 1 = lit)", Range(0, 1)) = 1
+        _MaxLight ("Max Light (caps blow-out right in front of a lamp)", Range(1, 4)) = 1.5
         [HDR] _EmissionColor ("Glow", Color) = (0, 0, 0, 0)
         [Toggle(_VERTEX_COLORS)] _VertexColors ("Use mesh colours (per-triangle colour models)", Float) = 0
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
@@ -34,6 +36,7 @@ Shader "Retro/PS1 Lit"
             float4 _SnapResolution;
             half _Affine;
             half _Lighting;
+            half _MaxLight;
             half4 _EmissionColor;
         CBUFFER_END
         TEXTURE2D(_BaseMap);
@@ -138,7 +141,9 @@ Shader "Retro/PS1 Lit"
             {
                 float2 uv = lerp(i.uv, i.uvAffine, _Affine);
                 half4 col = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv) * _BaseColor;
-                half3 lit = i.light + AdditionalLighting(i.positionWS, normalize(i.normalWS), i.positionCS);
+                // Capped like the PS1, where lighting could only push a texture so far: a flashlight
+                // in your face brightens things instead of burning them out to white.
+                half3 lit = min(i.light + AdditionalLighting(i.positionWS, normalize(i.normalWS), i.positionCS), _MaxLight);
                 col.rgb *= lerp(half3(1, 1, 1), lit, _Lighting) * i.tint;
                 col.rgb += _EmissionColor.rgb;
                 col.rgb = MixFog(col.rgb, i.fog);

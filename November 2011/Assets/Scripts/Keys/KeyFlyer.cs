@@ -37,7 +37,11 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     [SerializeField] Transform visual;
     [SerializeField] Transform jawUpper;
     [SerializeField] Transform jawLower;
+    [Tooltip("How far each jaw swings when the mouth is fully open (degrees about its hinge): upper, lower.")]
+    [SerializeField] Vector2 jawOpenDegrees = new Vector2(-60f, 80f);
     [SerializeField] GameObject mouthInterior;
+    [Tooltip("Shown only while the mouth is open (so the shut face stays as painted).")]
+    [SerializeField] GameObject[] fangs;
     [SerializeField] Collider throatHitbox;
     [SerializeField] Light throatLight;
     [SerializeField] Transform mouthPoint;
@@ -716,7 +720,7 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(-cam.forward, Vector3.up), 1f - Mathf.Exp(-12f * dt));
         transform.position += (want - MouthPosition) * Mathf.Min(1f, 16f * dt);
         velocity = Vector3.zero;
-        mouthTarget = rearing ? 1f : bit > 0f ? 0f : .55f + .45f * Mathf.Abs(Mathf.Sin(Time.time * 13f + seed));
+        mouthTarget = rearing ? 1f : bit > 0f ? 0f : .7f + .3f * Mathf.Abs(Mathf.Sin(Time.time * 13f + seed)); // fangs always showing
         if (!rearing && Time.time >= nextPinClack)
         {
             nextPinClack = Time.time + Mathf.Lerp(.4f, .18f, pinner.Pressure);
@@ -1125,10 +1129,11 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
 
     void ApplyJaw()
     {
-        if (jawUpper != null) jawUpper.localRotation = Quaternion.Euler(-60f * mouthOpen, 0f, 0f);
-        if (jawLower != null) jawLower.localRotation = Quaternion.Euler(80f * mouthOpen, 0f, 0f);
+        if (jawUpper != null) jawUpper.localRotation = Quaternion.Euler(jawOpenDegrees.x * mouthOpen, 0f, 0f);
+        if (jawLower != null) jawLower.localRotation = Quaternion.Euler(jawOpenDegrees.y * mouthOpen, 0f, 0f);
         bool open = mouthOpen > .08f && visible;
         if (mouthInterior != null && mouthInterior.activeSelf != open) mouthInterior.SetActive(open);
+        if (fangs != null) foreach (GameObject f in fangs) if (f != null && f.activeSelf != open) f.SetActive(open);
         if (throatHitbox != null) throatHitbox.enabled = mouthOpen > .35f && visible && state != State.Dead;
         if (throatLight != null) throatLight.intensity = mouthOpen * 3.5f * (visible ? 1f : 0f);
     }
@@ -1137,9 +1142,9 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     {
         if (glowRenderers == null) return;
         bool telling = state == State.BiteWindUp || state == State.WhipWindUp || state == State.SpearWindUp || state == State.SpitWindUp
-                       || state == State.DiveAim || state == State.EatWindUp || state == State.Scream
-                       || (state == State.Pin && (pinner == null || !pinner.StabReady));
-        bool exposed = state == State.Stagger || state == State.Stuck || (state == State.Pin && !telling);
+                       || state == State.DiveAim || state == State.EatWindUp || state == State.Scream;
+        // On top of you it just smoulders (white-hot would blind you at this range); it flashes when the stab opens.
+        bool exposed = state == State.Stagger || state == State.Stuck || (state == State.Pin && pinner != null && pinner.StabReady);
         float intensity = telling ? 7f + Mathf.Sin(Time.time * 50f) * 2f
                         : exposed ? (Mathf.Repeat(Time.time * 6f, 1f) < .5f ? 5f : .8f)
                         : 3f;
