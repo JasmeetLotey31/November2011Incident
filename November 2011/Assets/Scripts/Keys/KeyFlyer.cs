@@ -15,6 +15,8 @@ using UnityEngine;
 ///   blade-first and impales the floor. Stuck afterwards with its face at your level: punish it.
 /// - GORE SPIT (far): vomits globs of half-eaten crew that blind you and burn where they land.
 /// - SCREAM (pack): lights blow out, your aim shakes, the others pounce.
+/// - PIN: a chomp from behind, out of a rush, or while you're down can slam you to the floor and
+///   get on top of you (see <see cref="PlayerPinned"/>): shove it back, then stab it.
 /// - SWALLOW (finisher): only if you're knocked down or nearly dead: it eats you (shoot the throat
 ///   or pry it open, or it kills you).
 /// The throat (inside the mouth) is the weak spot; the blade shaft is armoured.
@@ -28,7 +30,7 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         Hidden, Appear, Hunt, Feed,
         BiteWindUp, Bite, WhipWindUp, Whip, SpearWindUp, SpearOut, Yank,
         DiveRise, DiveAim, DiveFall, Stuck, SpitWindUp, Spit, Scream,
-        EatWindUp, Eating, Recover, Stagger, Dead,
+        EatWindUp, Eating, Pin, Recover, Stagger, Dead,
     }
 
     [Header("Model")]
@@ -141,6 +143,13 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     [SerializeField] float packRadius = 14f;
     [SerializeField] Vector2 packFollowUp = new Vector2(.4f, 1f);
 
+    [Header("Pin")]
+    [Tooltip("Chance a chomp pins you instead of only biting, when it comes from behind, out of a rush, or while you're down.")]
+    [Range(0, 1)] [SerializeField] float pinChance = .75f;
+    [Tooltip("A chomp from more than this many degrees off where you're looking counts as from behind.")]
+    [SerializeField] float pinBehindAngle = 100f;
+    [SerializeField] float pinSlamDamage = 14f;
+
     [Header("Audio")]
     [SerializeField] AudioSource voice;
     [SerializeField] AudioSource sfx;
@@ -158,6 +167,7 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     public bool IsDead => state == State.Dead;
     public bool IsDiving => rushing || state != State.Hidden && state != State.Appear && state != State.Hunt && state != State.Feed
                             && state != State.Recover && state != State.Stagger && state != State.Stuck && state != State.Dead;
+    public bool IsPinning => state == State.Pin;
     public bool IsAttackingDive => state == State.DiveAim || state == State.DiveFall;
     public Vector3 DiveTarget => diveTarget;
     public float Growth => growth;
@@ -176,7 +186,9 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     float mouthOpen, mouthTarget, growth = 1f, meatEaten, tongueDamage, throatDamage, nextChew, lastStaggerAt = 1f, hiddenFor;
     float whipStartAngle, whipY, spitFired, deadFall;
     float staggerFor, windUpDamage, lastHurtTime = -10f, rushUntil;
-    bool rushing;
+    bool rushing, rushBite;
+    PlayerPinned pinner;
+    float nextPinClack;
     bool hitLanded;
     Vector3 velocity, tongueDir, tongueTipPos, baseScale, diveTarget, lungeDir;
     Corpse meal;
@@ -299,7 +311,7 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
                     Steer(target.EyePosition + side * 2f + Vector3.up * .5f, rushSpeed * speedMul, dt);
                     Face(target.EyePosition - transform.position, dt, 720f);
                     mouthTarget = .35f;
-                    if (distance <= chompRange) { rushing = false; Enter(State.BiteWindUp); }
+                    if (distance <= chompRange) { rushing = false; Enter(State.BiteWindUp); rushBite = true; }
                     else if (Time.time > rushUntil) { rushing = false; KeyHorde.ReleaseDiveToken(this); Enter(State.Hunt); }
                     break;
                 }
@@ -341,10 +353,18 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
                 {
                     hitLanded = true;
                     PlayOneShot(chewClips, 1f);
-                    prey?.Hit(chompDamage, gameObject, lungeDir, 5f, chompInjuryChance, 0f);
                     BloodVFX.Spray(target.EyePosition, lungeDir, BloodVFX.HumanBlood, 2f);
+                    // From behind, out of a rush, or while you're down: it slams you to the floor and gets on top of you.
+                    if (prey != null && WantsPin(target, prey) && TryPin(prey)) break;
+                    prey?.Hit(chompDamage, gameObject, lungeDir, 5f, chompInjuryChance, 0f);
                 }
                 if (hitLanded || stateTime > .35f) Enter(State.Recover);
+                break;
+
+            // ---------- PIN ----------
+            case State.Pin:
+                if (!alive || pinner == null || pinner.Key != this) { pinner = null; Enter(State.Recover); break; }
+                UpdatePin(target, dt);
                 break;
 
             // ---------- TONGUE WHIP ----------
@@ -654,6 +674,79 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         lungeDir = (KeyTarget.Current != null ? KeyTarget.Current.EyePosition - MouthPosition : transform.forward).normalized;
         hitLanded = false;
         Enter(State.Bite);
+    }
+
+    // ================= pin =================
+
+    bool WantsPin(KeyTarget target, PlayerEaten prey)
+    {
+        Vector3 toMe = Flat(transform.position - target.Position);
+        bool behind = toMe.sqrMagnitude > .01f && target.View != null
+                      && Vector3.Angle(Flat(target.View.transform.forward), toMe) > pinBehindAngle;
+        return (rushBite || behind || prey.IsDown) && UnityEngine.Random.value < pinChance;
+    }
+
+    /// <summary>Slam the player to the floor and get on top of them. False if they can't be pinned now.</summary>
+    public bool TryPin(PlayerEaten prey)
+    {
+        if (state == State.Dead || prey == null || prey.Pinned == null) return false;
+        KeyHorde.TryTakeDiveToken(this); // keep (or take) the attack slot while it's on you
+        if (!prey.Pinned.TryBegin(this)) return false;
+        pinner = prey.Pinned;
+        velocity = Vector3.zero;
+        nextPinClack = Time.time + .2f;
+        Enter(State.Pin);
+        PlayOneShot(screamClips, 1f);
+        prey.Wound(pinSlamDamage, gameObject, 0f);
+        return true;
+    }
+
+    void UpdatePin(KeyTarget target, float dt)
+    {
+        // On top of you, jaws snapping at your face: the harder it's winning, the closer they get.
+        // When you've shoved it back it rears up, throat open: that's the stab.
+        Transform cam = target.View.transform;
+        bool rearing = pinner.StabReady;
+        float bit = Mathf.Clamp01(1f - (Time.time - pinner.LastBiteTime) / .25f);
+        float shoved = Mathf.Clamp01(1f - (Time.time - pinner.LastShoveTime) / .15f);
+        float reach = rearing ? 1.85f : Mathf.Lerp(1.6f, .6f, pinner.Pressure) + shoved * .15f - bit * .3f;
+        float shake = rearing ? .02f : .04f + .06f * pinner.Pressure;
+        Vector3 want = cam.position + cam.forward * reach + cam.up * (rearing ? .4f : 0f)
+                       + (cam.right * Mathf.Sin(Time.time * 23f + seed) + cam.up * Mathf.Sin(Time.time * 29f)) * shake;
+        transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(-cam.forward, Vector3.up), 1f - Mathf.Exp(-12f * dt));
+        transform.position += (want - MouthPosition) * Mathf.Min(1f, 16f * dt);
+        velocity = Vector3.zero;
+        mouthTarget = rearing ? 1f : bit > 0f ? 0f : .55f + .45f * Mathf.Abs(Mathf.Sin(Time.time * 13f + seed));
+        if (!rearing && Time.time >= nextPinClack)
+        {
+            nextPinClack = Time.time + Mathf.Lerp(.4f, .18f, pinner.Pressure);
+            PlayOneShot(clackClips, .9f);
+        }
+    }
+
+    /// <summary>You shoved it back far enough: it rears up, throat open.</summary>
+    public void PinStabOpening() { if (state == State.Pin) PlayOneShot(screamClips, 1f); }
+
+    /// <summary>You didn't stab in time: it comes back down.</summary>
+    public void PinStabMissed() { if (state == State.Pin) PlayOneShot(gurgleClips, 1f); }
+
+    /// <summary>The jaws reached you.</summary>
+    public void PinBite()
+    {
+        if (state != State.Pin) return;
+        PlayOneShot(chewClips, 1f);
+        mouthOpen = 0f; // snaps shut
+        BloodVFX.Spray(MouthPosition, -transform.forward + Vector3.up * .3f, BloodVFX.HumanBlood, 2.2f);
+    }
+
+    /// <summary>The pin is over: you stabbed it off (staggered, kickable), or it let go.</summary>
+    public void PinReleased(bool playerWon)
+    {
+        if (state != State.Pin) return;
+        pinner = null;
+        if (playerWon) { PlayOneShot(screamClips, 1f); Stagger(staggerSeconds); return; }
+        velocity = Vector3.up * 4f + transform.forward * -3f;
+        Enter(State.Recover);
     }
 
     void DiveImpact(KeyTarget target, PlayerEaten prey)
@@ -1018,6 +1111,7 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         {
             case State.Stagger: swingX = 25f + Mathf.Sin(Time.time * 3f) * 5f; swingZ = Mathf.Sin(Time.time * 2f) * 15f; break;
             case State.Bite: case State.BiteWindUp: case State.EatWindUp: case State.Eating: swingX = -18f; break;
+            case State.Pin: swingX = pinner != null && pinner.StabReady ? -40f : -18f + Mathf.Sin(Time.time * 21f) * 6f; break;
             case State.Feed: swingX = 55f + Mathf.Sin(Time.time * 9f) * 8f; break;
             case State.DiveAim: swingX = Mathf.Sin(Time.time * 30f) * 3f; swingZ = Mathf.Sin(Time.time * 27f) * 3f; break; // dead straight, quivering
             case State.DiveFall: case State.Stuck: swingX = 0f; swingZ = state == State.Stuck ? Mathf.Sin(Time.time * 18f) * 4f : 0f; break;
@@ -1043,9 +1137,11 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     {
         if (glowRenderers == null) return;
         bool telling = state == State.BiteWindUp || state == State.WhipWindUp || state == State.SpearWindUp || state == State.SpitWindUp
-                       || state == State.DiveAim || state == State.EatWindUp || state == State.Scream;
+                       || state == State.DiveAim || state == State.EatWindUp || state == State.Scream
+                       || (state == State.Pin && (pinner == null || !pinner.StabReady));
+        bool exposed = state == State.Stagger || state == State.Stuck || (state == State.Pin && !telling);
         float intensity = telling ? 7f + Mathf.Sin(Time.time * 50f) * 2f
-                        : state == State.Stagger || state == State.Stuck ? (Mathf.Repeat(Time.time * 6f, 1f) < .5f ? 5f : .8f)
+                        : exposed ? (Mathf.Repeat(Time.time * 6f, 1f) < .5f ? 5f : .8f)
                         : 3f;
         Color c = telling ? Color.Lerp(glowColor, Color.white, .6f) : glowColor;
         foreach (Renderer r in glowRenderers)
@@ -1122,6 +1218,7 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     void Enter(State next)
     {
         if (next != State.Hunt) rushing = false;
+        if (next != State.BiteWindUp && next != State.Bite) rushBite = false;
         state = next;
         stateTime = 0f;
         switch (next)

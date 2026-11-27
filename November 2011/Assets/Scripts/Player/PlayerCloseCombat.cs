@@ -112,8 +112,8 @@ public sealed class PlayerCloseCombat : MonoBehaviour
     {
         if (health.IsDead) return;
         if (IsGrabbed) { UpdateGrab(Time.deltaTime); return; }
-        // Inside a mouth, V pries it open (PlayerEaten) instead of kicking; dashing still works on a tongue.
-        if (eaten != null && eaten.IsEaten) { KickTarget = null; return; }
+        // Inside a mouth, V pries it open (PlayerEaten); pinned, V stabs (PlayerPinned). Dashing still works on a tongue.
+        if (eaten != null && (eaten.IsEaten || eaten.IsPinned)) { KickTarget = null; return; }
         KickTarget = IsKicking ? null : FindKickable();
         if (IsKicking || Cursor.lockState != CursorLockMode.Locked) return;
         if (meleeAction.WasPressedThisFrame()) TryMelee();

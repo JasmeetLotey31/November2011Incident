@@ -109,10 +109,10 @@ public sealed class ControlsScreen : MonoBehaviour
 
         headline = HudKit.Txt("Title", t, 84, TextAnchor.MiddleCenter);
         headline.color = HudKit.Danger;
-        HudKit.Place(headline.rectTransform, new Vector2(.5f, 1f), new Vector2(0f, -120f), new Vector2(1600f, 110f));
+        HudKit.Place(headline.rectTransform, new Vector2(.5f, 1f), new Vector2(0f, -78f), new Vector2(1600f, 110f));
         Text sub = HudKit.Txt("Subtitle", t, 22, TextAnchor.MiddleCenter, FontStyle.Normal);
         sub.text = subtitle;
-        HudKit.Place(sub.rectTransform, new Vector2(.5f, 1f), new Vector2(0f, -198f), new Vector2(1600f, 30f));
+        HudKit.Place(sub.rectTransform, new Vector2(.5f, 1f), new Vector2(0f, -192f), new Vector2(1600f, 30f));
 
         Column(t, "CONTROLS", new Vector2(-470f, 250f), new[]
         {
@@ -139,6 +139,7 @@ public sealed class ControlsScreen : MonoBehaviour
             Tip("Tongue swinging at you?  " + K("SPACE") + " jump it, or " + K("ALT") + " dash."),
             Tip("Tongue speared you?  Shoot the tongue, or " + K("ALT") + " dash to rip free."),
             Tip("Knocked down?  " + K("ALT") + " to roll up.  Down or nearly dead, they swallow you."),
+            Tip("Pinned?  Mash " + K("A") + " " + K("D") + " to shove it back, then " + K("V") + " STAB it."),
             Tip("Swallowed?  Shoot the throat or mash " + K("V") + ".  Too slow and it bites a chunk off."),
             Tip("Gore spit blinds you and the puddles burn.  Keep moving."),
             Tip("When one screams the lights die and they ALL come.  Flashlight " + K("F") + "."),
@@ -166,5 +167,5 @@ public sealed class ControlsScreen : MonoBehaviour
 
     static string K(string key) => $"<color=#FF5A45><b>[{key}]</b></color>";
     static string Key(string key, string what) => $"<color=#FF5A45><b>{key}</b></color>   {what}";
-    static string Tip(string text) => "â€¢  " + text;
+    static string Tip(string text) => "•  " + text;
 }
