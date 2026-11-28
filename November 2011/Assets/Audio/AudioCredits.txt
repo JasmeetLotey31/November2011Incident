@@ -60,3 +60,10 @@ Pistol/ and Keys/ (key horde rebuild):
   Pistol/Scrap_Pickup     <- Cartridge_Seat_C (CC0)
   Keys/Key_Chew_A-B    <- Fan_Palm_A-B (CC0)
   Keys/Key_Scream_A-C, Key_Gurgle, Key_Whisper, Pistol/Player_Bitten: generated (Windows speech synthesizer), placeholders
+
+Station/ and Guns/ (sound pass, made by Assets/Scripts/Editor/SoundForge.cs; Tools/Audio/Rebuild Sounds):
+  Station/*            synthesized in code (room tone, hull groans, metal ticks, fluorescent hum and
+                       crackles, wave klaxon, all-clear chime, radio squelch, power down, deck footsteps).
+  Guns/Pistol_Fire_*   <- Pistol/Pistol_Fire_A-C (CC0, above), pitched up, tail shortened, synth slide clack.
+  Guns/Shotgun_Fire_*  <- Pistol/Pistol_Fire_A-C (CC0, above), pitched down, synth sub thump, blast and pump.
+  Guns/Energy_Fire_*, Shotgun_Pump, Mag_Out, Mag_In, Slide_Release, Cell_In: synthesized in code.

@@ -299,13 +299,13 @@ MonoBehaviour:
   interactRange: 2.5
   audioSource: {fileID: 8347896205393442225}
   fireClips:
-  - {fileID: 8300000, guid: ed9f43a5cfaff4c47a19f3242d5186b6, type: 3}
-  - {fileID: 8300000, guid: d8215b669bc68e547ac2199586cd3f5a, type: 3}
-  - {fileID: 8300000, guid: 981385bdd74654147b65381209eb40c4, type: 3}
+  - {fileID: 8300000, guid: 55f3be8a5f5b62441bd83b0f606347d2, type: 3}
+  - {fileID: 8300000, guid: 4d1580d47eeecfe4a8753a93f3afa520, type: 3}
+  - {fileID: 8300000, guid: 986830895b0682e4aba943f7cae28ae3, type: 3}
   dryFireClip: {fileID: 8300000, guid: fa55f712b0e0c8842bf4c8d3ec066aa3, type: 3}
-  reloadStartClip: {fileID: 8300000, guid: d04485dfe45264741812141248bbeaf1, type: 3}
-  reloadInsertClip: {fileID: 8300000, guid: 7b5e2e26497105345ad7a109231b2927, type: 3}
-  reloadEndClip: {fileID: 8300000, guid: c6b346a555c26b9488a22ddc043c2ac5, type: 3}
+  reloadStartClip: {fileID: 8300000, guid: c7791981e4de3dd48a2d972c33061981, type: 3}
+  reloadInsertClip: {fileID: 8300000, guid: c6f9a4943c49f404193cee096297621e, type: 3}
+  reloadEndClip: {fileID: 0}
   pickupClip: {fileID: 8300000, guid: 1984ee497aa4a644bbda0e9b5f15dece, type: 3}
   reloadCallout: {fileID: 8300000, guid: a59885bf7b6cd474282a3a4a24b0447b, type: 3}
   reloadCalloutChance: 0.7

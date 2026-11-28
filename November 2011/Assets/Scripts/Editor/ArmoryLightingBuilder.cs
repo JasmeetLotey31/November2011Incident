@@ -117,6 +117,16 @@ public static class ArmoryLightingBuilder
         g.arraySize = tubes.Length;
         for (int i = 0; i < tubes.Length; i++) g.GetArrayElementAtIndex(i).objectReferenceValue = tubes[i];
         so.FindProperty("glowColor").colorValue = Tube * 1.8f;
+        // The tubes hum (3D, close range); the light drives the volume and crackles as it fails.
+        var hum = light.gameObject.AddComponent<AudioSource>();
+        hum.clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Station/Light_Hum.wav");
+        hum.loop = true; hum.playOnAwake = true; hum.volume = .22f; hum.priority = 160;
+        hum.spatialBlend = 1f; hum.minDistance = 1f; hum.maxDistance = 8f; hum.rolloffMode = AudioRolloffMode.Logarithmic; hum.dopplerLevel = 0f;
+        so.FindProperty("hum").objectReferenceValue = hum;
+        var crackles = so.FindProperty("crackles");
+        crackles.arraySize = 3;
+        for (int i = 0; i < 3; i++)
+            crackles.GetArrayElementAtIndex(i).objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"Assets/Audio/Station/Light_Crackle_{(char)('A' + i)}.wav");
         so.ApplyModifiedPropertiesWithoutUndo();
 
         PrefabUtility.SaveAsPrefabAsset(root, FixturePath);

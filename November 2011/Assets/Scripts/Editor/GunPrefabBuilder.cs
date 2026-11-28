@@ -129,10 +129,10 @@ public static class GunPrefabBuilder
             Int(so, "pellets", 1); F(so, "pelletSpread", 0f); F(so, "knockback", 0f);
             so.FindProperty("spinner").objectReferenceValue = spinner;
             var clips = so.FindProperty("fireClips");
-            string[] shots = { "Pistol_Fire_A", "Pistol_Fire_B", "Pistol_Fire_C" };
+            string[] shots = { "Energy_Fire_A", "Energy_Fire_B", "Energy_Fire_C" };   // under the GunFX zap (SoundForge)
             clips.arraySize = shots.Length;
             for (int i = 0; i < shots.Length; i++)
-                clips.GetArrayElementAtIndex(i).objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"Assets/Audio/Pistol/{shots[i]}.wav");
+                clips.GetArrayElementAtIndex(i).objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"Assets/Audio/Guns/{shots[i]}.wav");
             stats(so);
             so.ApplyModifiedPropertiesWithoutUndo();
 

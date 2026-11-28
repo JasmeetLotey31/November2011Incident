@@ -172,6 +172,8 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     [SerializeField] AudioClip[] clackClips;
     [SerializeField] AudioClip tongueClip;
     [SerializeField] AudioClip deathClip;
+    [Tooltip("How loud its chanting voice and vent whisper are (many keys at once add up).")]
+    [Range(0, 1)] [SerializeField] float voiceLevel = .6f;
     [SerializeField] Vector2 voicePitch = new Vector2(.5f, .62f);
 
     public State Current => state;
@@ -629,10 +631,10 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         UpdateGlow();
         if (voice != null && voice.isPlaying)
         {
-            voice.volume = visible ? (IsDiving ? 1f : .7f) : 0f;
+            voice.volume = (visible ? (IsDiving ? 1f : .7f) : 0f) * voiceLevel;
             voice.pitch = basePitch / Mathf.Sqrt(growth) * (frenzy ? 1.12f : 1f);
         }
-        if (whisper != null) whisper.volume = visible ? 0f : .9f;
+        if (whisper != null) whisper.volume = visible ? 0f : .9f * voiceLevel;
     }
 
     /// <summary>Pick an attack for this range. Returns false if nothing fits right now.</summary>

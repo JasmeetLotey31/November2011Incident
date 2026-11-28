@@ -16,6 +16,9 @@ public sealed class EmergencyLight : MonoBehaviour
     [Tooltip("Optional glowing parts (the fixture's tubes) that brighten and die with the light.")]
     [SerializeField] Renderer[] glows;
     [SerializeField] Color glowColor = Color.white;
+    [Tooltip("Optional: the fixture's hum, which follows the light (dies with it, stutters with it).")]
+    [SerializeField] AudioSource hum;
+    [SerializeField] AudioClip[] crackles;
 
     /// <summary>All station lights go (nearly) dark until this time: the keys cut the power.</summary>
     public static float BlackoutUntil { get; private set; } = -1f;
@@ -28,7 +31,8 @@ public sealed class EmergencyLight : MonoBehaviour
     static void ResetStatics() => BlackoutUntil = -1f;
 
     Light lightSource;
-    float baseIntensity, offset, outUntil, blackoutFade = 1f;
+    float baseIntensity, offset, outUntil, blackoutFade = 1f, humVolume = -1f;
+    bool wasOn = true;
 
     void Awake()
     {
@@ -49,6 +53,17 @@ public sealed class EmergencyLight : MonoBehaviour
         blackoutFade = IsBlackout ? 0f : Mathf.MoveTowards(blackoutFade, 1f, Time.deltaTime * Random.Range(.5f, 3f));
         float power = IsBlackout ? .04f : (Random.value < blackoutFade ? 1f : .1f);
         lightSource.intensity = baseIntensity * pulse * buzz * power;
+        if (hum != null)
+        {
+            float level = baseIntensity > 0f ? lightSource.intensity / baseIntensity : 0f;
+            if (humVolume < 0f) { humVolume = hum.volume; hum.time = Random.value * Mathf.Max(.01f, hum.clip != null ? hum.clip.length - .01f : 0f); }
+            hum.volume = humVolume * Mathf.Clamp01(level);
+            // A failing tube crackles as it drops out and catches again.
+            bool on = level > .3f;
+            if (on != wasOn && crackles != null && crackles.Length > 0 && Random.value < .35f + brokenness)
+                hum.PlayOneShot(crackles[Random.Range(0, crackles.Length)], .6f);
+            wasOn = on;
+        }
         if (glows != null && glows.Length > 0)
         {
             block ??= new MaterialPropertyBlock();
