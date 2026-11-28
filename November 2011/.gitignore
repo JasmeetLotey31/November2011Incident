@@ -141,3 +141,6 @@ crashlytics-build.properties
 
 # Blender auto-backups (FileName.blend1) - never commit
 *.blend1
+
+# Python caches from the ArtSource Blender scripts (build_crew.py imports build_guns.py)
+__pycache__/

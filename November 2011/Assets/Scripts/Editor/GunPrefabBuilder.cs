@@ -174,8 +174,10 @@ public static class GunPrefabBuilder
     public static string BuildKinetic()
     {
         Material indicator = Indicator();
-        return Rearm("Pistol", "Sidearm", 128, new Vector3(0f, .022f, .137f), indicator)
+        string log = Rearm("Pistol", "Sidearm", 128, new Vector3(0f, .022f, .137f), indicator)
              + Rearm("Shotgun", "Shotgun", 256, new Vector3(0f, .03f, .482f), indicator);
+        AssetDatabase.SaveAssets();   // new materials only reach the disk on a save: without it they commit blank
+        return log;
     }
 
     static string Rearm(string file, string prefabName, int atlasSize, Vector3 muzzlePos, Material indicator)

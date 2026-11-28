@@ -14,7 +14,7 @@ Material:
   m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
-  m_EnableInstancingVariants: 0
+  m_EnableInstancingVariants: 1
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
   stringTagMap: {}
@@ -31,13 +31,13 @@ Material:
     m_Floats:
     - _Affine: 1
     - _Cull: 2
-    - _Lighting: 1
+    - _Lighting: 0
     - _MaxLight: 1.5
     - _VertexColors: 0
     - _WorldUV: 0
     m_Colors:
-    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _EmissionColor: {r: 0, g: 0, b: 0, a: 0}
+    - _BaseColor: {r: 0.2, g: 0.55, b: 0.6, a: 1}
+    - _EmissionColor: {r: 0.24499999, g: 0.66499996, b: 0.7, a: 0.7}
     - _SnapResolution: {r: 320, g: 240, b: 0, a: 0}
     - _WorldUVScale: {r: 0.5, g: 0.25, b: 0.5, a: 0}
   m_BuildTextureStacks: []
