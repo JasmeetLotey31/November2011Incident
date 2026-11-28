@@ -8,6 +8,9 @@ like brushwork, only a soft 1-px edge on sharp edges, details painted by 3D posi
 Writes Guns_Textured.blend next to this script and, into Assets/Models/Guns/:
   IonCarbine.fbx  + Textures/IonCarbine_Atlas.png    ION CARBINE (station security, full auto)
   ArcRepeater.fbx + Textures/ArcRepeater_Atlas.png   ARC REPEATER (rotary heavy gun; child "Barrels" spins)
+  Pistol.fbx      + Textures/Pistol_Atlas.png        PISTOL (the crew sidearm, kinetic)
+  Shotgun.fbx     + Textures/Shotgun_Atlas.png       SHOTGUN (breaching shotgun, pump action)
+  (--only Pistol,Shotgun exports just those; the .blend always gets all of them)
 Glowing parts (energy cells, coils, emitter rings, sight dots) are a second material slot,
 "Glow": the game makes them emissive and drives them from the gun (charge, shots, reload).
 Built in "gun space": f = forward (muzzle), u = up, l = the gun's left (the side you see in
@@ -27,6 +30,7 @@ from mathutils import Euler, Matrix, Vector
 HERE = Path(__file__).resolve().parent
 ASSET_DIR = HERE.parent.parent / "Assets" / "Models" / "Guns"
 W = H = 256
+ATLAS_SIZE = {"Pistol": 128}  # per gun, so every gun's texels come out about the same size
 PAD = 1
 SHARP_DEG = 40
 ISLAND_DEG = 35
@@ -65,6 +69,7 @@ RAMPS = {
     # station-issue armour panels: warm cream, like the NASA-white of the station itself
     "white": [(62, 58, 50), (100, 94, 82), (138, 132, 116), (172, 166, 148), (198, 192, 172), (220, 214, 192)],
     "orange": [(80, 28, 8), (130, 48, 12), (176, 74, 20), (210, 100, 30), (230, 130, 52), (244, 164, 90)],
+    "shell": [(50, 10, 8), (84, 16, 12), (120, 26, 18), (152, 38, 24), (178, 56, 34), (200, 82, 52)],   # red shotgun shells
     "glow": [(255, 255, 255)] * 6,   # never painted: its faces get the emissive Glow material
 }
 KINDS = list(RAMPS)
@@ -271,6 +276,85 @@ def build_repeater():
     return [ob_body, ob_bar]
 
 
+def build_pistol():
+    """PISTOL: the crew's sidearm, kinetic (brass and muzzle flash), in the station's look: a cream
+    armoured slide over a dark frame, serrations at the back, glowing sight dots, a cyan chamber
+    light on the left, orange bands on the nose, raked rubber grip with an orange base pad."""
+    g = Gun("Pistol")
+    g.box("dark", .025, -.009, 0, .165, .022, .03, bevel=.002)                # frame, f -.06..+.11
+    g.box("dark", .092, -.024, 0, .046, .01, .024)                            # rail under the nose
+    g.profile("white", [(-.072, .046), (.1, .046), (.126, .036), (.126, .0), (-.072, .0)], .036, bevel=.002)
+    g.box("dark", .02, .048, 0, .15, .004, .012)                              # top rib
+    g.box("dark", .052, .026, .0185, .042, .014, .002)                         # ejection port (left)
+    g.box("orange", .108, .023, .0185, .012, .026, .002)                       # nose bands
+    g.box("orange", .108, .023, -.0185, .012, .026, .002)
+    g.tube("dark", .126, .136, .022, 0, .0075, 8)                              # muzzle crown
+    # sights: rear notch with two glowing dots, front post with one
+    g.box("dark", -.062, .052, .0085, .01, .012, .007)
+    g.box("dark", -.062, .052, -.0085, .01, .012, .007)
+    g.box("glow", -.0565, .054, .0085, .002, .004, .004)
+    g.box("glow", -.0565, .054, -.0085, .002, .004, .004)
+    g.box("dark", .112, .051, 0, .008, .01, .005)
+    g.box("glow", .1075, .053, 0, .002, .004, .004)
+    g.box("glow", -.045, .014, .0185, .008, .005, .002)                        # chamber light
+    # trigger guard and trigger
+    g.box("dark", .01, -.034, 0, .055, .005, .012)
+    g.box("dark", .036, -.026, 0, .006, .018, .012)
+    g.box("dark", .012, -.024, 0, .005, .016, .006, tilt=10)
+    # grip: rubber, raked back; orange magazine base pad at its foot
+    g.box("rubber", -.045, -.066, 0, .045, .11, .032, bevel=.004, tilt=12)
+    g.box("orange", -.057, -.124, 0, .05, .01, .035, tilt=12)
+    return [g.finish()]
+
+
+def build_shotgun():
+    """SHOTGUN: breaching shotgun, pump action. Dark receiver in cream side armour with an orange
+    plate, a side saddle of red shells on the left, a vented heat shield over the barrel, a chunky
+    ribbed rubber pump, a toothed breaching muzzle, skeletal stock like the carbine, glowing bead."""
+    g = Gun("Shotgun")
+    g.box("gun", -.04, .01, 0, .2, .07, .044, bevel=.004)                     # receiver, f -.14..+.06
+    panel = [(-.135, .04), (.055, .04), (.06, .0), (.03, -.022), (-.135, -.022)]
+    g.profile("white", panel, .006, l=.0245, bevel=.0015)
+    g.profile("white", panel, .006, l=-.0245, bevel=.0015)
+    g.box("orange", -.01, .029, .0285, .046, .012, .002)                       # hazard plate (left)
+    g.box("dark", -.04, .05, 0, .13, .008, .016)                               # top rail
+    g.box("dark", -.1, .058, 0, .012, .01, .018)                               # rear sight
+    # side saddle on the left: four shells standing in a dark carrier, brass heads down
+    g.box("dark", -.075, .0, .029, .064, .036, .004)
+    for k in range(4):
+        f = -.097 + k * .0145
+        g.rod("shell", f, -.011, .017, .0335, .0055, 6)
+        g.rod("brass", f, -.016, -.011, .0335, .006, 6)
+    # barrel over the magazine tube, a clamp near the front
+    g.tube("dark", .06, .44, .03, 0, .016, 8)
+    g.tube("gun", .06, .39, -.006, 0, .014, 8)
+    g.box("gun", .38, .012, 0, .02, .052, .026)
+    # heat shield over the barrel: cream top and skirts (vents painted)
+    g.box("white", .23, .049, 0, .26, .01, .03, bevel=.002)
+    g.box("white", .23, .04, .0155, .26, .018, .003)
+    g.box("white", .23, .04, -.0155, .26, .018, .003)
+    # pump: chunky ribbed rubber with an orange stripe at its back
+    g.box("rubber", .2, -.008, 0, .14, .042, .046, bevel=.005)
+    g.box("orange", .135, -.008, 0, .008, .044, .048)
+    # breaching muzzle: a collar with four standoff teeth
+    g.tube("gun", .44, .47, .03, 0, .021, 8)
+    for k in range(4):
+        a = math.radians(45 + 90 * k)
+        g.box("dark", .476, .03 + .019 * math.cos(a), .019 * math.sin(a), .012, .008, .008)
+    g.box("glow", .43, .051, 0, .004, .005, .004)                               # bead
+    # trigger guard, trigger, grip
+    g.box("dark", -.03, -.032, 0, .06, .005, .012)
+    g.box("dark", -.002, -.025, 0, .006, .016, .012)
+    g.box("dark", -.03, -.022, 0, .005, .016, .006, tilt=8)
+    g.box("rubber", -.112, -.064, 0, .042, .1, .034, bevel=.004, tilt=18)
+    # skeletal stock: top bar, slanted lower strut, rubber butt pad, orange stripe
+    g.box("white", -.255, .012, 0, .23, .022, .03, bevel=.003)
+    g.box("white", -.26, -.045, 0, .24, .014, .026, bevel=.002, tilt=-12)
+    g.box("rubber", -.375, -.02, 0, .022, .11, .042, bevel=.004)
+    g.box("orange", -.255, .024, 0, .05, .004, .031)
+    return [g.finish()]
+
+
 # ------------------------------------------------------------------ unwrap (patches, like the key)
 def unwrap(meshes):
     """One atlas for all the given meshes: neighbouring faces that point the same way become
@@ -373,9 +457,23 @@ def detail(name, kind, pos, n, centre, tone):
         if .1 < f < .16 and -.012 < u < .0 and (int((f - .1) / .006) % 2 == 0) and ((u + .012) % .006) < .003:
             return tone - 0.8, None
     if kind == "gun" and abs(nl) > 0.8:                     # bolts on the core
-        for rf, ru in ((-.08, -.018), (.21, -.015)) if name == "IonCarbine" else ((-.1, -.035), (.15, -.035), (.15, .035)):
+        bolts = {"IonCarbine": ((-.08, -.018), (.21, -.015)), "ArcRepeater": ((-.1, -.035), (.15, -.035), (.15, .035)),
+                 "Shotgun": ((-.125, -.016), (.04, -.016), (.04, .034))}.get(name, ())
+        for rf, ru in bolts:
             if math.hypot(f - rf, u - ru) < .0028:
                 return tone - 1.0, None
+    if name == "Pistol" and kind == "white" and abs(nl) > .8 and -.068 < f < -.036 and u > .01:
+        if ((f + .068) % .007) < .0025:                     # slide serrations
+            return tone - 1.1, None
+    if name == "Pistol" and kind == "white" and abs(nl) > .8 and abs(f - .086) < .0018:
+        return tone - 1.2, None                             # seam where the nose armour joins
+    if name == "Shotgun" and kind == "white" and nu > .8 and .11 < f < .35 and abs(l) < .011:
+        if (f % .02) < .008:                                # heat-shield vents
+            return 0.4, "dark"
+    if name == "Shotgun" and kind == "rubber" and .135 < f < .27 and (f % .012) < .0045:
+        return tone - 1.0, None                             # pump ribs
+    if name == "Shotgun" and kind == "white" and abs(nl) > .8 and abs(f + .04) < .0018 and u > -.02:
+        return tone - 1.2, None                             # receiver panel seam
     return tone, None
 
 
@@ -539,9 +637,14 @@ def main():
     for o in list(bpy.data.objects):
         bpy.data.objects.remove(o)
     ASSET_DIR.mkdir(parents=True, exist_ok=True)
-    sets = [build_carbine(), build_repeater()]
+    sets = [build_carbine(), build_repeater(), build_pistol(), build_shotgun()]
+    # --only Pistol,Shotgun exports just those (the .blend always gets all of them).
+    only = set(argv[argv.index("--only") + 1].split(",")) if "--only" in argv else None
+    global W, H
     for obs in sets:
         name = obs[0].name
+        # The pistol is small: a half-size atlas keeps its pixels the same size on screen as the others'.
+        W = H = ATLAS_SIZE.get(name, 256)
         unwrap([o.data for o in obs])
         img = paint(obs, name)
         assign_materials(obs, make_material(name, img))
@@ -551,6 +654,8 @@ def main():
         img.pack()
     bpy.ops.wm.save_as_mainfile(filepath=str(HERE / "Guns_Textured.blend"), copy=True)
     for obs in sets:
+        if only and obs[0].name not in only:
+            continue
         bpy.ops.object.select_all(action="DESELECT")
         for o in obs:
             o.select_set(True)

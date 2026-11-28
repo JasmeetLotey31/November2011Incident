@@ -112,6 +112,7 @@ public sealed class WeaponLocker : MonoBehaviour
         if (screenTop != null) screenTop.color = c * .8f;
         if (screenGlow != null)
         {
+            if (block == null) block = new MaterialPropertyBlock();       // after a script reload mid-play
             screenGlow.GetPropertyBlock(block);
             block.SetColor(BaseColorId, c);                               // tints the painted white letters
             block.SetColor(EmissionId, c * (flashing ? .25f : .04f));     // a faint glow on the dark CRT

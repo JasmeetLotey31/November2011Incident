@@ -163,6 +163,70 @@ public static class GunPrefabBuilder
         finally { PrefabUtility.UnloadPrefabContents(root); }
     }
 
+    // ================= the crew's kinetic guns, in the same look =================
+
+    [MenuItem("Tools/Armory/Rebuild Pistol and Shotgun")]
+    static void BuildKineticMenu() => Debug.Log(BuildKinetic());
+
+    /// <summary>Swaps the pistol's and shotgun's placeholder boxes for their Blender models (same
+    /// station look as the energy guns: cream armour, dark steel, orange marks, small cyan lights).
+    /// Only the art and the muzzle point change: stats, sounds, flash and handling stay as they are.</summary>
+    public static string BuildKinetic()
+    {
+        Material indicator = Indicator();
+        return Rearm("Pistol", "Sidearm", 128, new Vector3(0f, .022f, .137f), indicator)
+             + Rearm("Shotgun", "Shotgun", 256, new Vector3(0f, .03f, .482f), indicator);
+    }
+
+    static string Rearm(string file, string prefabName, int atlasSize, Vector3 muzzlePos, Material indicator)
+    {
+        string texPath = $"{Models}Textures/{file}_Atlas.png";
+        var ti = (TextureImporter)AssetImporter.GetAtPath(texPath);
+        ti.filterMode = FilterMode.Point; ti.mipmapEnabled = false; ti.textureCompression = TextureImporterCompression.Uncompressed;
+        ti.maxTextureSize = atlasSize; ti.wrapMode = TextureWrapMode.Clamp; ti.SaveAndReimport();
+        string fbxPath = $"{Models}{file}.fbx";
+        var mi = (ModelImporter)AssetImporter.GetAtPath(fbxPath);
+        mi.materialImportMode = ModelImporterMaterialImportMode.None; mi.importAnimation = false; mi.SaveAndReimport();
+
+        Material body = Mat(file, AssetDatabase.LoadAssetAtPath<Texture2D>(texPath));
+        string prefabPath = $"{Prefabs}{prefabName}.prefab";
+        var root = PrefabUtility.LoadPrefabContents(prefabPath);
+        try
+        {
+            Transform model = root.transform.Find("Model");
+            for (int i = model.childCount - 1; i >= 0; i--) Object.DestroyImmediate(model.GetChild(i).gameObject);
+            var art = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(fbxPath), model);
+            art.name = "Art";
+            int tris = 0;
+            foreach (var mr in art.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                Mesh mesh = mr.GetComponent<MeshFilter>().sharedMesh;
+                mr.sharedMaterials = mesh.subMeshCount > 1 ? new[] { body, indicator } : new[] { body };
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;   // a viewmodel
+                tris += mesh.triangles.Length / 3;
+            }
+            root.transform.Find("Muzzle").localPosition = muzzlePos;
+            PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+            return $"{prefabPath}: {tris} tris\n";
+        }
+        finally { PrefabUtility.UnloadPrefabContents(root); }
+    }
+
+    /// <summary>Sight dots and status lights on the kinetic guns: a steady soft cyan (nothing drives them).</summary>
+    static Material Indicator()
+    {
+        string path = Mats + "Gun_Indicator.mat";
+        var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (m == null) { m = new Material(Shader.Find("Retro/PS1 Lit")); AssetDatabase.CreateAsset(m, path); }
+        m.SetColor("_BaseColor", new Color(.2f, .55f, .6f));
+        m.SetColor("_EmissionColor", Cyan * .7f);
+        m.SetVector("_SnapResolution", new Vector4(320f, 240f, 0f, 0f));
+        m.SetFloat("_Lighting", 0f);
+        m.enableInstancing = true;
+        EditorUtility.SetDirty(m);
+        return m;
+    }
+
     static Material Mat(string name, Texture2D atlas)
     {
         string path = Mats + name + ".mat";
