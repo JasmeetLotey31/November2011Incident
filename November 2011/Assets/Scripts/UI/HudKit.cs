@@ -107,9 +107,25 @@ public static class HudKit
     /// <summary>A ring of jagged fangs around the screen edge pointing inward (seen from inside a mouth).</summary>
     public static Texture2D TeethRing(int size = 256, int teeth = 22)
     {
-        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { hideFlags = HideFlags.DontSave, wrapMode = TextureWrapMode.Clamp };
+        // Painted like the keys' own fangs (KeyFlyerModelBuilder): yellowed and stained, darker toward the
+        // roots, one gone rotten, set in wet red gums; colour in a few soft steps, point-filtered pixels.
+        Color32[] toothRamp = { new Color32(74, 48, 24, 255), new Color32(120, 88, 48, 255), new Color32(166, 136, 88, 255),
+                                new Color32(204, 182, 134, 255), new Color32(230, 214, 170, 255), new Color32(244, 234, 200, 255) };
+        Color32[] rotRamp = { new Color32(30, 18, 10, 255), new Color32(54, 34, 18, 255), new Color32(84, 58, 30, 255),
+                              new Color32(118, 90, 52, 255), new Color32(150, 124, 80, 255), new Color32(176, 154, 108, 255) };
+        Color32[] gumRamp = { new Color32(10, 2, 3, 255), new Color32(30, 6, 7, 255), new Color32(58, 11, 12, 255),
+                              new Color32(88, 18, 17, 255), new Color32(116, 30, 22, 255), new Color32(140, 46, 26, 255) };
+        Color Shade(Color32[] ramp, float f)
+        {
+            f = Mathf.Clamp(f, 0f, ramp.Length - 1);
+            int k = Mathf.Min(ramp.Length - 2, Mathf.FloorToInt(f));
+            return Color.Lerp(ramp[k], ramp[k + 1], Mathf.Round((f - k) * 3f) / 3f);
+        }
+        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { hideFlags = HideFlags.DontSave, wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Point };
         var jitter = new float[teeth];
         for (int i = 0; i < teeth; i++) jitter[i] = Random.Range(.75f, 1.2f);
+        int rotten = Random.Range(0, teeth);
+        float seed = Random.value * 100f;
         for (int y = 0; y < size; y++)
             for (int x = 0; x < size; x++)
             {
@@ -120,11 +136,20 @@ public static class HudKit
                 float local = ang * teeth - Mathf.Floor(ang * teeth); // 0..1 across one tooth
                 float tip = .55f + .25f * (1f - jitter[i]);           // how far in this tooth reaches
                 float toothEdge = Mathf.Lerp(1f, tip, 1f - Mathf.Abs(local - .5f) * 2f); // triangle
-                float gum = .97f;
-                float a = r > gum ? 1f : r > toothEdge ? 1f : 0f;
-                float shade = r > gum ? .12f : Mathf.Lerp(.95f, .6f, (r - toothEdge) * 4f);
-                Color c = r > gum ? new Color(.25f, 0f, 0f, 1f) : new Color(shade, shade * .92f, shade * .75f, 1f);
-                tex.SetPixel(x, y, new Color(c.r, c.g, c.b, a));
+                const float gum = .97f;
+                if (r <= toothEdge && r <= gum) { tex.SetPixel(x, y, Color.clear); continue; }
+                float noise = Mathf.PerlinNoise(x * .07f + seed, y * .07f) - .5f;
+                Color c;
+                if (r > gum) c = Shade(gumRamp, 2.4f + noise * 1.6f + (Mathf.PerlinNoise(x * .15f, y * .15f + seed) > .72f ? .8f : 0f));
+                else
+                {
+                    float root = Mathf.InverseLerp(toothEdge, gum, r);                 // 0 at the tip, 1 at the gum
+                    float f = 4.7f - 2.6f * root - 1.2f * Mathf.Abs(local - .5f) + noise * 1.4f;
+                    if (Mathf.PerlinNoise(x * .11f + seed * 2f, y * .11f) < .3f) f -= .9f;   // brown stains
+                    c = Shade(i == rotten ? rotRamp : toothRamp, f);
+                    if (root > .82f) c = Color.Lerp(c, Shade(gumRamp, 3.2f), Mathf.Round((root - .82f) / .18f * 3f) / 3f);
+                }
+                tex.SetPixel(x, y, c);
             }
         tex.Apply();
         return tex;

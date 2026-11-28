@@ -31,7 +31,8 @@ Material:
     m_Floats:
     - _Affine: 0.5
     - _Cull: 2
-    - _Lighting: 1
+    - _Lighting: 0.85
+    - _MaxLight: 1.5
     - _VertexColors: 0
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}

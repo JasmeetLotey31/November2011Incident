@@ -39,6 +39,13 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     [SerializeField] Transform jawLower;
     [Tooltip("How far each jaw swings when the mouth is fully open (degrees about its hinge): upper, lower.")]
     [SerializeField] Vector2 jawOpenDegrees = new Vector2(-60f, 80f);
+    // The face keeps staring at you while the mouth gapes, instead of tipping away.
+    [Tooltip("How far the jaws pull apart when fully open (metres): upper lifts, lower drops.")]
+    [SerializeField] Vector2 jawOpenLift = Vector2.zero;
+
+    [Header("Twitching")]
+    [Tooltip("Seconds between sudden head twitches while it hunts (random between).")]
+    [SerializeField] Vector2 twitchEvery = new Vector2(2.5f, 6f);
     [SerializeField] GameObject mouthInterior;
     [Tooltip("Shown only while the mouth is open (so the shut face stays as painted).")]
     [SerializeField] GameObject[] fangs;
@@ -187,6 +194,8 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     PlayerEaten victim;
     State state;
     float stateTime, orbitAngle, orbitDir, radius, height, nextAttack, nextGlitch, nextChant, nextDive, nextScream, basePitch, seed;
+    float nextTwitch, twitchUntil;
+    Vector3 twitchAngles, upperRest, lowerRest;
     float mouthOpen, mouthTarget, growth = 1f, meatEaten, tongueDamage, throatDamage, nextChew, lastStaggerAt = 1f, hiddenFor;
     float whipStartAngle, whipY, spitFired, deadFall;
     float staggerFor, windUpDamage, lastHurtTime = -10f, rushUntil;
@@ -217,6 +226,8 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         height = UnityEngine.Random.Range(orbitHeight.x, orbitHeight.y);
         basePitch = UnityEngine.Random.Range(voicePitch.x, voicePitch.y);
         if (visual != null) baseScale = visual.localScale;
+        if (jawUpper != null) upperRest = jawUpper.localPosition;
+        if (jawLower != null) lowerRest = jawLower.localPosition;
         allRenderers = GetComponentsInChildren<Renderer>(true);
         allColliders = GetComponentsInChildren<Collider>(true);
         SetTongue(false);
@@ -1143,7 +1154,7 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         switch (state)
         {
             case State.Stagger: swingX = 25f + Mathf.Sin(Time.time * 3f) * 5f; swingZ = Mathf.Sin(Time.time * 2f) * 15f; break;
-            case State.Bite: case State.BiteWindUp: case State.EatWindUp: case State.Eating: swingX = -18f; break;
+            case State.Bite: case State.BiteWindUp: case State.EatWindUp: case State.Eating: swingX = -8f; break;  // eyes stay on you
             case State.Pin: swingX = pinner != null && pinner.StabReady ? -40f : -18f + Mathf.Sin(Time.time * 21f) * 6f; break;
             case State.Feed: swingX = 55f + Mathf.Sin(Time.time * 9f) * 8f; break;
             case State.DiveAim: swingX = Mathf.Sin(Time.time * 30f) * 3f; swingZ = Mathf.Sin(Time.time * 27f) * 3f; break; // dead straight, quivering
@@ -1152,14 +1163,34 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
             case State.WhipWindUp: swingZ = -whipStartAngle * .15f; break;
             case State.Whip: swingZ = whipStartAngle * .25f; break;
         }
+        // Winding up an attack: a fast shudder.
+        if (state == State.BiteWindUp || state == State.WhipWindUp || state == State.SpearWindUp || state == State.SpitWindUp || state == State.EatWindUp)
+        {
+            swingZ += Mathf.Sin(Time.time * 57f) * 3.5f;
+            swingX += Mathf.Sin(Time.time * 49f) * 2f;
+        }
+        // Hunting: now and then the head snaps sideways for a split second (uncanny, not animal).
+        if (state == State.Hunt && !rushing && visible && Time.time >= nextTwitch)
+        {
+            nextTwitch = Time.time + UnityEngine.Random.Range(twitchEvery.x, twitchEvery.y);
+            twitchUntil = Time.time + UnityEngine.Random.Range(.09f, .16f);
+            twitchAngles = new Vector3(UnityEngine.Random.Range(-14f, 14f), 0f, UnityEngine.Random.Range(-28f, 28f));
+            PlayOneShot(clackClips, .7f);
+        }
+        if (Time.time < twitchUntil)
+        {
+            visual.localRotation = Quaternion.Euler(swingX + twitchAngles.x, 0f, swingZ + twitchAngles.z);
+            visual.localScale = baseScale * growth;
+            return;
+        }
         visual.localRotation = Quaternion.Slerp(visual.localRotation, Quaternion.Euler(swingX, 0f, swingZ), 1f - Mathf.Exp(-8f * dt));
         visual.localScale = baseScale * growth;
     }
 
     void ApplyJaw()
     {
-        if (jawUpper != null) jawUpper.localRotation = Quaternion.Euler(jawOpenDegrees.x * mouthOpen, 0f, 0f);
-        if (jawLower != null) jawLower.localRotation = Quaternion.Euler(jawOpenDegrees.y * mouthOpen, 0f, 0f);
+        if (jawUpper != null) { jawUpper.localRotation = Quaternion.Euler(jawOpenDegrees.x * mouthOpen, 0f, 0f); jawUpper.localPosition = upperRest + Vector3.up * (jawOpenLift.x * mouthOpen); }
+        if (jawLower != null) { jawLower.localRotation = Quaternion.Euler(jawOpenDegrees.y * mouthOpen, 0f, 0f); jawLower.localPosition = lowerRest - Vector3.up * (jawOpenLift.y * mouthOpen); }
         bool open = mouthOpen > .08f && visible;
         if (mouthInterior != null && mouthInterior.activeSelf != open) mouthInterior.SetActive(open);
         if (fangs != null) foreach (GameObject f in fangs) if (f != null && f.activeSelf != open) f.SetActive(open);
@@ -1176,7 +1207,7 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         bool exposed = state == State.Stagger || state == State.Stuck || (state == State.Pin && pinner != null && pinner.StabReady);
         float intensity = telling ? 7f + Mathf.Sin(Time.time * 50f) * 2f
                         : exposed ? (Mathf.Repeat(Time.time * 6f, 1f) < .5f ? 5f : .8f)
-                        : 3f;
+                        : 1.4f;   // smouldering red, not salmon: brighter washes out to pink
         Color c = telling ? Color.Lerp(glowColor, Color.white, .6f) : glowColor;
         foreach (Renderer r in glowRenderers)
         {
