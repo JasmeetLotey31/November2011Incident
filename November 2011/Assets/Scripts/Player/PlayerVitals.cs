@@ -97,7 +97,7 @@ public sealed class PlayerVitals : MonoBehaviour
         {
             float leg = LegScratchRemaining > 0f ? legScratchSlow : 1f;
             Sidearm g = gun;
-            float aim = g != null ? Mathf.Lerp(1f, g.AimMoveMultiplier, g.AimAmount) : 1f;
+            float aim = g != null ? Mathf.Lerp(1f, g.AimMoveMultiplier, g.AimAmount) * g.CarryMoveMultiplier : 1f;
             // Pinned by a key, or busy twisting one's head off.
             float held = closeCombat != null && (closeCombat.IsGrabbed || closeCombat.IsKicking) ? 0f : 1f;
             if (eaten != null && (eaten.IsEaten || eaten.IsPulled || eaten.IsDown || eaten.IsPinned)) held = 0f;

@@ -19,6 +19,8 @@ public static class WeaponLockerBuilder
     static readonly (string gun, string prefab, string label, int cost, int ammo)[] Lockers =
     {
         ("SHOTGUN", "Assets/Prefabs/Weapons/Shotgun.prefab", "SMALL ARMS 02", 750, 375),
+        ("ION CARBINE", "Assets/Prefabs/Weapons/IonCarbine.prefab", "SMALL ARMS 03", 1500, 750),
+        ("ARC REPEATER", "Assets/Prefabs/Weapons/ArcRepeater.prefab", "HEAVY ARMS 01", 3500, 1750),
     };
 
     [MenuItem("Tools/Armory/Rebuild Weapon Lockers")]
@@ -109,27 +111,27 @@ public static class WeaponLockerBuilder
         stencil.color = new Color(.78f, .62f, .2f, .85f);
 
         // Terminal above it: amber screen with the locker number, the gun and the price.
-        Box("Terminal", r, new Vector3(0f, 2.27f, .06f), new Vector3(.66f, .32f, .08f), dark);
-        Transform glow = Box("Screen", r, new Vector3(0f, 2.27f, .101f), new Vector3(.58f, .25f, .004f), screen).transform;
+        Box("Terminal", r, new Vector3(0f, 2.33f, .06f), new Vector3(.9f, .44f, .08f), dark);
+        Transform glow = Box("Screen", r, new Vector3(0f, 2.33f, .101f), new Vector3(.82f, .36f, .004f), screen).transform;
         var canvasGo = new GameObject("Screen Text", typeof(RectTransform), typeof(Canvas));
         var canvas = canvasGo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
         var crt = (RectTransform)canvasGo.transform;
         crt.SetParent(r, false);
-        crt.sizeDelta = new Vector2(580f, 250f);
+        crt.sizeDelta = new Vector2(820f, 360f);
         crt.localScale = Vector3.one * .001f;
-        crt.localPosition = new Vector3(0f, 2.27f, .106f);
+        crt.localPosition = new Vector3(0f, 2.33f, .106f);
         crt.localRotation = Quaternion.Euler(0f, 180f, 0f); // UI faces -Z; the locker faces +Z
         // Big enough to read at the game's quarter resolution from a couple of metres.
-        Text name = ScreenText("Gun", crt, 104, new Vector2(0f, 42f), FontStyle.Bold);
-        Text price = ScreenText("Price", crt, 84, new Vector2(0f, -66f), FontStyle.Bold);
+        Text name = ScreenText("Gun", crt, Mathf.Min(150, Mathf.FloorToInt(780f / (.66f * WeaponLocker.ScreenName(gunName).Length))), new Vector2(0f, 62f), FontStyle.Bold);
+        Text price = ScreenText("Price", crt, 120, new Vector2(0f, -92f), FontStyle.Bold);
 
         // Caged amber lamp: a beacon in the dark hall.
-        Box("Lamp Cage", r, new Vector3(0f, 2.58f, .1f), new Vector3(.16f, .1f, .12f), metal);
-        Box("Lamp Bulb", r, new Vector3(0f, 2.56f, .14f), new Vector3(.1f, .06f, .08f), bulb);
+        Box("Lamp Cage", r, new Vector3(0f, 2.68f, .1f), new Vector3(.16f, .1f, .12f), metal);
+        Box("Lamp Bulb", r, new Vector3(0f, 2.66f, .14f), new Vector3(.1f, .06f, .08f), bulb);
         var lamp = new GameObject("Lamp").AddComponent<Light>();
         lamp.transform.SetParent(r, false);
-        lamp.transform.localPosition = new Vector3(0f, 2.5f, .55f);
+        lamp.transform.localPosition = new Vector3(0f, 2.6f, .55f);
         lamp.type = LightType.Point; lamp.range = 4.5f; lamp.intensity = 2f; lamp.color = new Color(1f, .6f, .25f); lamp.shadows = LightShadows.None;
 
         // Solid to walk into, and what the player's look ray hits.
@@ -157,7 +159,7 @@ public static class WeaponLockerBuilder
         so.FindProperty("openClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/NailGun/NailGun_Reload_Open.wav");
         so.FindProperty("closeClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Impacts/Impact_Metal_1.wav");
         so.ApplyModifiedPropertiesWithoutUndo();
-        name.text = gunName; price.text = cost.ToString();
+        name.text = WeaponLocker.ScreenName(gunName); price.text = cost.ToString();
 
         if (!AssetDatabase.IsValidFolder(OutDir)) AssetDatabase.CreateFolder("Assets/Prefabs", "Level");
         string path = $"{OutDir}/{root.name}.prefab";
@@ -187,7 +189,7 @@ public static class WeaponLockerBuilder
         var go = new GameObject(name, typeof(RectTransform), typeof(Text));
         var rt = (RectTransform)go.transform;
         rt.SetParent(canvas, false);
-        rt.sizeDelta = new Vector2(560f, size * 1.3f);
+        rt.sizeDelta = new Vector2(canvas.sizeDelta.x - 20f, size * 1.3f);
         rt.anchoredPosition = pos;
         var t = go.GetComponent<Text>();
         t.font = HudKit.Font;

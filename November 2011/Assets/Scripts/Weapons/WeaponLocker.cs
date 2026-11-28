@@ -63,9 +63,12 @@ public sealed class WeaponLocker : MonoBehaviour
     void RefreshScreen()
     {
         if (screenTop != null) screenTop.text = lockerLabel;
-        if (screenName != null) screenName.text = weaponName;
+        if (screenName != null) screenName.text = ScreenName(weaponName);
         if (screenPrice != null) screenPrice.text = cost.ToString();
     }
+
+    /// <summary>The terminal shows the last word (CARBINE, REPEATER): big enough to read at PS1 resolution.</summary>
+    public static string ScreenName(string gun) => gun.Contains(" ") ? gun.Substring(gun.LastIndexOf(' ') + 1) : gun;
 
     /// <summary>Bought: open up, hand the gun over (or the ammo), restock in a moment.</summary>
     public void Purchased(bool ammo)

@@ -56,6 +56,8 @@ public sealed class Sidearm : MonoBehaviour
     [SerializeField] float range = 80f;
     [SerializeField] LayerMask hitMask = ~0;
     [SerializeField] float fireInterval = .2f;
+    [Tooltip("Hold the trigger to keep firing (rifles, machine guns).")]
+    [SerializeField] bool automatic;
     [Tooltip("How far the keys hear a shot. Gunfire is loud.")]
     [SerializeField] float noiseRadius = 32f;
 
@@ -84,6 +86,21 @@ public sealed class Sidearm : MonoBehaviour
     [SerializeField] Vector3 recoilPivot = new Vector3(0f, -.09f, -.05f);
     [Range(0, 2)] [SerializeField] float cameraKickAmount = 1f;
     [SerializeField] float cameraKickDegrees = 1.6f;
+    [Tooltip("Each shot walks the view up this far (degrees); hold the mouse down against it.")]
+    [SerializeField] float viewClimbDegrees = 0f;
+    [Tooltip("...and pushes it up to this far left or right.")]
+    [SerializeField] float viewClimbYaw = 0f;
+
+    [Header("Spin-up (rotary guns)")]
+    [Tooltip("Seconds of holding the trigger before it fires (0 = fires at once).")]
+    [SerializeField] float spinUpSeconds = 0f;
+    [Tooltip("The barrels that spin (around their local Z).")]
+    [SerializeField] Transform spinner;
+    [SerializeField] float spinDegreesPerSecond = 1500f;
+
+    [Header("Weight")]
+    [Tooltip("Walk speed while carrying it (a machine gun slows you down).")]
+    [Range(.5f, 1f)] [SerializeField] float carryMoveMultiplier = 1f;
 
     [Header("Interact")]
     [SerializeField] float interactRange = 2.5f;
@@ -118,6 +135,13 @@ public sealed class Sidearm : MonoBehaviour
     public float CurrentSpread { get; private set; }
     /// <summary>Movement speed multiplier at full aim (PlayerVitals applies it).</summary>
     public float AimMoveMultiplier => aimMoveSpeedMultiplier;
+    public float CarryMoveMultiplier => carryMoveMultiplier;
+    public bool Automatic => automatic;
+    /// <summary>0..1 how far a rotary gun has spun up.</summary>
+    public float Spin01 { get; private set; }
+    /// <summary>Where the last shot went (first hit, or out to range): for tracers.</summary>
+    public Vector3 LastShotEnd { get; private set; }
+    public Transform Muzzle => muzzle;
 
     public event Action AmmoChanged, Fired, DryFired, ReloadStarted, ReloadFinished;
 
@@ -183,6 +207,7 @@ public sealed class Sidearm : MonoBehaviour
         SetFlash(false);
         if (IsReloading) { StopAllCoroutines(); IsReloading = false; ReloadProgress = 0f; }
         if (aimCamera != null) aimCamera.fieldOfView = hipFov;
+        Spin01 = 0f;
     }
 
     void OnDestroy() { reloadAction.Dispose(); aimAction.Dispose(); }
@@ -205,9 +230,21 @@ public sealed class Sidearm : MonoBehaviour
         shotBloom = Mathf.MoveTowards(shotBloom, 0f, bloomRecoveryPerSecond * Time.deltaTime);
         CurrentSpread = ComputeSpread();
 
+        // Rotary guns spin up while the trigger is held (and only fire once they're up to speed),
+        // and wind down slower when it's let go.
+        bool triggerHeld = canAct && attackAction.IsPressed() && !IsReloading;
+        if (spinUpSeconds > 0f)
+        {
+            Spin01 = Mathf.MoveTowards(Spin01, triggerHeld ? 1f : 0f, Time.deltaTime / (triggerHeld ? spinUpSeconds : spinUpSeconds * 2.5f));
+            if (spinner != null) spinner.localRotation *= Quaternion.Euler(0f, 0f, spinDegreesPerSecond * Spin01 * Time.deltaTime);
+        }
+
         if (canAct)
         {
-            if (attackAction.WasPressedThisFrame()) TryFire();
+            // Semi-auto fires on each click; automatic keeps firing while the trigger is held.
+            bool pressed = attackAction.WasPressedThisFrame();
+            bool spunUp = spinUpSeconds <= 0f || Spin01 >= 1f;
+            if (spunUp && (pressed || (automatic && attackAction.IsPressed()))) TryFire(!pressed || spinUpSeconds > 0f);
             if (reloadAction.WasPressedThisFrame()) TryReload();
             if (interactAction.WasPressedThisFrame()) TryPickup();
         }
@@ -259,15 +296,19 @@ public sealed class Sidearm : MonoBehaviour
         return spread * Mathf.Lerp(1f, aimSpreadMultiplier, AimAmount) * (injuries != null ? injuries.SpreadPenalty : 1f);
     }
 
-    void TryFire()
+    void TryFire(bool held = false)
     {
         if (IsReloading || Time.time < nextFireTime) return;
         nextFireTime = Time.time + fireInterval;
 
         if (Loaded <= 0)
         {
-            Play(dryFireClip, 1f);
-            DryFired?.Invoke();
+            // Empty: one click on the press (holding an automatic doesn't click on and on).
+            if (!held)
+            {
+                Play(dryFireClip, 1f);
+                DryFired?.Invoke();
+            }
             return;
         }
 
@@ -284,7 +325,9 @@ public sealed class Sidearm : MonoBehaviour
         {
             Vector3 dir = pellets > 1 ? SpreadDirection(centre, pelletSpread) : centre;
             Ray shot = new Ray(aim.origin, dir);
-            if (!CastShot(shot, out RaycastHit hit)) continue;
+            bool landed = CastShot(shot, out RaycastHit hit);
+            if (p == 0) LastShotEnd = landed ? hit.point : shot.GetPoint(range);
+            if (!landed) continue;
             Hitbox hitbox = hit.collider.GetComponent<Hitbox>();
             var info = new DamageInfo
             {
@@ -308,6 +351,10 @@ public sealed class Sidearm : MonoBehaviour
             recoilAmount * Mathf.Lerp(1f, .6f, AimAmount), recoilKickBack, recoilLift,
             recoilRiseDegrees, recoilSettleSeconds, recoilPivot, shotCount);
         if (cameraKick != null) cameraKick.Play(cameraKickAmount * Mathf.Lerp(1f, .7f, AimAmount), cameraKickDegrees, shotCount);
+        // Rifles and machine guns climb: the view walks up with every shot (less aimed in).
+        if (motor != null && viewClimbDegrees > 0f)
+            motor.AddRecoil(viewClimbDegrees * Mathf.Lerp(1f, .65f, AimAmount) * UnityEngine.Random.Range(.8f, 1.2f),
+                            UnityEngine.Random.Range(-viewClimbYaw, viewClimbYaw));
         SetFlash(true);
         flashUntil = Time.time + .045f;
         PlayPitched(PickRandom(fireClips), firePitch);

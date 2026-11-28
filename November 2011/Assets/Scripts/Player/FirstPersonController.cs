@@ -32,6 +32,14 @@ public class FirstPersonController : MonoBehaviour
     /// </summary>
     public float SpeedMultiplier { get; set; } = 1f;
 
+    /// <summary>Gun recoil: kicks the view up (and a little sideways). You pull it back down.</summary>
+    public void AddRecoil(float pitchUpDegrees, float yawDegrees)
+    {
+        pitch = Mathf.Clamp(pitch - pitchUpDegrees, -maxPitch, maxPitch);
+        transform.Rotate(0f, yawDegrees, 0f);
+        if (cameraPivot != null) cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+    }
+
     CharacterController controller;
     InputAction moveAction, lookAction, jumpAction, sprintAction;
     float pitch;

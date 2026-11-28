@@ -16,6 +16,10 @@ public sealed class GunHUD : MonoBehaviour
 {
     static readonly Color Brass = new Color(.85f, .62f, .25f, 1f);
     static readonly Color Spent = new Color(.18f, .16f, .14f, .9f);
+    [Tooltip("Colour of the loaded rounds (brass for bullets, cyan for an energy gun's charge).")]
+    [SerializeField] Color ammoColor = new Color(.85f, .62f, .25f, 1f);
+    const int MaxPips = 30;
+    int roundsPerPip = 1;
 
     Sidearm gun;
     GameObject root;
@@ -98,7 +102,9 @@ public sealed class GunHUD : MonoBehaviour
     {
         lastLoaded = gun.Loaded;
         lastReserve = gun.Reserve;
-        for (int i = 0; i < bullets.Length; i++) bullets[i].color = i < gun.Loaded ? Brass : Spent;
+        // Big magazines: each pip stands for several rounds (lit while any of them is left).
+        int lit = Mathf.CeilToInt(gun.Loaded / (float)roundsPerPip);
+        for (int i = 0; i < bullets.Length; i++) bullets[i].color = i < lit ? ammoColor : Spent;
         reserveText.text = gun.Reserve.ToString();
         reserveText.color = gun.Reserve <= gun.MagazineSize ? HudKit.Danger : HudKit.Ivory;
     }
@@ -113,11 +119,12 @@ public sealed class GunHUD : MonoBehaviour
         HudKit.Place(panel, new Vector2(1f, 0f), new Vector2(-40f, 40f), new Vector2(300f, 70f));
         RectTransform row = HudKit.Rect("Bullets", panel);
         HudKit.Place(row, new Vector2(0f, .5f), new Vector2(0f, 0f), new Vector2(200f, 50f));
-        bullets = new Image[gun.MagazineSize];
+        roundsPerPip = Mathf.CeilToInt(gun.MagazineSize / (float)MaxPips);
+        bullets = new Image[Mathf.CeilToInt(gun.MagazineSize / (float)roundsPerPip)];
         float spacing = Mathf.Min(18f, 190f / Mathf.Max(1, bullets.Length));
         for (int i = 0; i < bullets.Length; i++)
         {
-            Image b = HudKit.Img("Round " + (i + 1), row, Brass);
+            Image b = HudKit.Img("Round " + (i + 1), row, ammoColor);
             HudKit.Place(b.rectTransform, new Vector2(0f, .5f), new Vector2(i * spacing, 0f), new Vector2(Mathf.Min(9f, spacing * .6f), 34f));
             var outline = b.gameObject.AddComponent<Outline>();
             outline.effectColor = new Color(0, 0, 0, .7f);
