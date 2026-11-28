@@ -131,6 +131,7 @@ public sealed class KeyHordeDirector : MonoBehaviour
             if (close != null) close.ApplyDifficulty(p.grabFailDamage, p.grabPresses);
             if (target.Gun != null) target.Gun.SetReserve(p.startingReserve);
             if (target.GetComponent<PlayerPoints>() == null) target.gameObject.AddComponent<PlayerPoints>();
+            if (target.GetComponent<PlayerBuy>() == null) target.gameObject.AddComponent<PlayerBuy>();
         }
         foreach (AmmoPickup box in FindObjectsByType<AmmoPickup>()) box.SetRounds(p.roundsPerBox);
         Current = Phase.Starting;
@@ -204,6 +205,9 @@ public sealed class KeyHordeDirector : MonoBehaviour
             EscapeUnlocked?.Invoke();
         }
     }
+
+    /// <summary>A line over the radio (other systems: lockers, tutorials).</summary>
+    public void Say(string line) => Radio?.Invoke(line);
 
     /// <summary>Skip the rest of the break (a "ready" button later; tests now).</summary>
     public void StartNextWaveNow() { if (Current == Phase.Break) breakUntil = Time.time; }

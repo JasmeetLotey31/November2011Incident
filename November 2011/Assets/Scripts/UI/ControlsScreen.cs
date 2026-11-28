@@ -123,8 +123,8 @@ public sealed class ControlsScreen : MonoBehaviour
             Key("LEFT CLICK", "shoot"),
             Key("RIGHT CLICK", "aim (laser sight)"),
             Key("R", "reload"),
-            Key("1 / 2  or  WHEEL", "pistol / shotgun"),
-            Key("E", "grab ammo"),
+            Key("1 / 2  or  WHEEL", "switch guns (you carry two)"),
+            Key("E", "grab ammo  /  HOLD at a locker to buy"),
             Key("LEFT ALT", "dash (you can't be hit mid-dash)"),
             Key("V", "kick / pry a mouth open"),
             Key("F", "flashlight"),
@@ -133,6 +133,7 @@ public sealed class ControlsScreen : MonoBehaviour
 
         Column(t, "HOW TO SURVIVE THE KEYS", new Vector2(430f, 250f), new[]
         {
+            Tip("Every hit and kill earns POINTS. Spend them at the armory's weapon lockers: hold " + K("E") + "."),
             Tip("Shoot INTO the open mouth. The throat is the weak spot; the blade is armoured."),
             Tip("Staggered, or stuck in the floor after a dive?  " + K("V") + " KICK it."),
             Tip("Red glow on the floor under you = one is diving on you.  MOVE."),

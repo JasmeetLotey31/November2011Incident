@@ -106,6 +106,8 @@ public sealed class Sidearm : MonoBehaviour
     public int Loaded { get; private set; }
     public int Reserve { get; private set; }
     public int MagazineSize => magazineSize;
+    public int MaxReserve => maxReserve;
+    public bool AmmoFull => Loaded >= magazineSize && Reserve >= maxReserve;
     public bool IsReloading { get; private set; }
     public float ReloadProgress { get; private set; }
     public bool IsEmpty => Loaded <= 0;
@@ -404,6 +406,14 @@ public sealed class Sidearm : MonoBehaviour
         ReloadProgress = 0f;
         AmmoChanged?.Invoke();
         ReloadFinished?.Invoke();
+    }
+
+    /// <summary>A full magazine and full spare rounds (issued from a weapon locker).</summary>
+    public void FillAmmo()
+    {
+        Loaded = magazineSize;
+        Reserve = maxReserve;
+        AmmoChanged?.Invoke();
     }
 
     /// <summary>Set the spare rounds directly (difficulty start values).</summary>

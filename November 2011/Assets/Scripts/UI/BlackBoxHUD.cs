@@ -82,7 +82,7 @@ public sealed class BlackBoxHUD : MonoBehaviour
     {
         if (vitals != null) { vitals.Hurt -= OnHurt; vitals.Died -= OnDied; }
         if (director != null) { director.Radio -= ShowRadio; director.WaveStarted -= OnWaveStarted; director.WaveCleared -= OnWaveCleared; }
-        if (points != null) points.Earned -= OnEarned;
+        if (points != null) { points.Earned -= OnEarned; points.Spent -= OnSpent; }
         points = null;
     }
 
@@ -115,12 +115,24 @@ public sealed class BlackBoxHUD : MonoBehaviour
         while (pops.Count > 6) { Destroy(pops[0].text.gameObject); pops.RemoveAt(0); }
     }
 
+    void OnSpent(int amount, string label)
+    {
+        pointsBumpAt = Time.unscaledTime;
+        var t = HudKit.Txt("Spent", popRoot, 30, TextAnchor.MiddleRight);
+        t.text = string.IsNullOrEmpty(label) ? $"-{amount}" : $"-{amount}  {label}";
+        t.color = HudKit.Danger;
+        HudKit.Place(t.rectTransform, new Vector2(1f, 0f), Vector2.zero, new Vector2(500f, 34f));
+        pops.Add((t, Time.unscaledTime));
+        while (pops.Count > 6) { Destroy(pops[0].text.gameObject); pops.RemoveAt(0); }
+    }
+
     void UpdateWavesAndPoints(float now)
     {
         if (points == null && PlayerPoints.Instance != null)
         {
             points = PlayerPoints.Instance;
             points.Earned += OnEarned;
+            points.Spent += OnSpent;
         }
         bool alive = deathAt < 0f;
 

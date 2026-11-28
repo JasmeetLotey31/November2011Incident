@@ -1417,7 +1417,8 @@ MonoBehaviour:
   guns:
   - {fileID: 534624399}
   - {fileID: 1917572124}
-  startIndex: 0
+  startCarried: 00000000i
+  maxCarried: 2
   audioSource: {fileID: 1272456042}
   switchClip: {fileID: 8300000, guid: c6b346a555c26b9488a22ddc043c2ac5, type: 3}
 --- !u!1 &345391214
@@ -2543,19 +2544,20 @@ MonoBehaviour:
   difficulty: 1
   flyerPrefab: {fileID: 2043259681224780794, guid: 0621a4608bedcbf4899a526526029c8a, type: 3}
   startDelay: 4
-  startPack: 2
-  maxPack: 5
-  secondsPerExtraKey: 40
+  firstWaveKeys: 6
+  extraKeysPerWave: 3
+  firstWaveMaxAlive: 3
+  wavesPerExtraAlive: 2
+  maxAliveCap: 8
   spawnGap: {x: 2.5, y: 5}
-  intensityPerDamage: 0.022222223
-  intensityDecay: 0.05
-  peakAt: 0.85
-  buildMaxSeconds: 45
-  peakSeconds: {x: 8, y: 12}
-  relaxSeconds: {x: 7, y: 11}
-  escapeAfterSeconds: 360
+  spawnGapShrinkPerWave: 0.07
+  breakSeconds: 15
+  tougherFromWave: 5
+  extraHealthPerWave: 0.08
+  escapeWave: 10
+  blackoutFromWave: 3
+  blackoutChancePerWave: 0.5
   blackoutSeconds: 6
-  blackoutChancePerPeak: 0.6
   blackoutRadio: THEY CUT THE POWER! Flashlight, NOW!
   blackoutAudio: {fileID: 849307900}
   blackoutClip: {fileID: 8300000, guid: 33715f77617d8ac49992f726cebd39fe, type: 3}
@@ -2576,14 +2578,15 @@ MonoBehaviour:
   - It's EATING them. It's eating the crew!
   - Watch the ceiling! They drop blade-first!
   - If you go down, GET UP. They swallow you whole.
-  peakRadio:
-  - There's too many of them! Keep moving!
-  - Don't stand still! DON'T STAND STILL!
-  - They're all coming at once!
-  relaxRadio:
+  waveRadio:
+  - Here they come again!
+  - More of them. MORE of them!
+  - They're coming through the vents!
+  - Hold the armory. HOLD IT.
+  clearRadio:
   - ...they pulled back. Grab ammo from the racks. Now.
   - It's quiet. That's worse. Reload.
-  - They're feeding. Use it. Get ammo.
+  - You're still alive? Get ammo. They'll be back.
   escapeRadio: POD 3 IS READY. You made it. ...they're still coming.
 --- !u!4 &849307899
 Transform:
@@ -3456,6 +3459,68 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1071624881}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1001 &1151354405
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2061019355}
+    m_Modifications:
+    - target: {fileID: 1334705667081150375, guid: 3233fcf4d61eb99479c1826e8e4336e0, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -11
+      objectReference: {fileID: 0}
+    - target: {fileID: 1334705667081150375, guid: 3233fcf4d61eb99479c1826e8e4336e0, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1334705667081150375, guid: 3233fcf4d61eb99479c1826e8e4336e0, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1334705667081150375, guid: 3233fcf4d61eb99479c1826e8e4336e0, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7071068
+      objectReference: {fileID: 0}
+    - target: {fileID: 1334705667081150375, guid: 3233fcf4d61eb99479c1826e8e4336e0, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1334705667081150375, guid: 3233fcf4d61eb99479c1826e8e4336e0, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.7071068
+      objectReference: {fileID: 0}
+    - target: {fileID: 1334705667081150375, guid: 3233fcf4d61eb99479c1826e8e4336e0, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1334705667081150375, guid: 3233fcf4d61eb99479c1826e8e4336e0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1334705667081150375, guid: 3233fcf4d61eb99479c1826e8e4336e0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1334705667081150375, guid: 3233fcf4d61eb99479c1826e8e4336e0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2250114033010124652, guid: 3233fcf4d61eb99479c1826e8e4336e0, type: 3}
+      propertyPath: m_Name
+      value: WeaponLocker_Shotgun
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 3233fcf4d61eb99479c1826e8e4336e0, type: 3}
+--- !u!4 &1151354406 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1334705667081150375, guid: 3233fcf4d61eb99479c1826e8e4336e0, type: 3}
+  m_PrefabInstance: {fileID: 1151354405}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1151886488
 GameObject:
   m_ObjectHideFlags: 0
@@ -3669,6 +3734,7 @@ Transform:
   - {fileID: 1637837043}
   - {fileID: 1213619735}
   - {fileID: 1320048285}
+  - {fileID: 2061019355}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1168693604
@@ -7065,6 +7131,38 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2042074946}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &2061019354
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2061019355}
+  m_Layer: 0
+  m_Name: Weapon Lockers
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2061019355
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2061019354}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1151354406}
+  m_Father: {fileID: 1168693603}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2066906109
 GameObject:
   m_ObjectHideFlags: 0

@@ -29,6 +29,7 @@ public sealed class PlayerPoints : MonoBehaviour
 
     /// <summary>(amount, label) for the HUD pop-ups; label is empty for plain hits.</summary>
     public event Action<int, string> Earned;
+    public event Action<int, string> Spent;
     public event Action Changed;
 
     PlayerPinned pinned;
@@ -74,11 +75,12 @@ public sealed class PlayerPoints : MonoBehaviour
 
     public bool CanAfford(int cost) => Points >= cost;
 
-    /// <summary>Pay for something. False (and nothing spent) if you can't afford it.</summary>
-    public bool Spend(int cost)
+    /// <summary>Pay for something (label for the HUD, e.g. SHOTGUN). False (and nothing spent) if you can't afford it.</summary>
+    public bool Spend(int cost, string label = "")
     {
         if (cost < 0 || Points < cost) return false;
         Points -= cost;
+        Spent?.Invoke(cost, label);
         Changed?.Invoke();
         return true;
     }
