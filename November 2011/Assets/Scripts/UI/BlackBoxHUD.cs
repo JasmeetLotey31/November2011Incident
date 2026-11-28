@@ -54,6 +54,13 @@ public sealed class BlackBoxHUD : MonoBehaviour
     RectTransform deathPanel;
     float radioUntil, hurtAt = -10f, deathAt = -1f, startTime;
 
+    // Waves and points.
+    Text waveBanner, waveSub, breakText, pointsText, pointsLabel;
+    RectTransform popRoot;
+    readonly System.Collections.Generic.List<(Text text, float born)> pops = new System.Collections.Generic.List<(Text, float)>();
+    float bannerAt = -10f, pointsBumpAt = -10f;
+    PlayerPoints points;
+
     void Awake()
     {
         vitals = GetComponent<PlayerVitals>();
@@ -68,13 +75,103 @@ public sealed class BlackBoxHUD : MonoBehaviour
     void OnEnable()
     {
         if (vitals != null) { vitals.Hurt += OnHurt; vitals.Died += OnDied; }
-        if (director != null) { director.Radio += ShowRadio; }
+        if (director != null) { director.Radio += ShowRadio; director.WaveStarted += OnWaveStarted; director.WaveCleared += OnWaveCleared; }
     }
 
     void OnDisable()
     {
         if (vitals != null) { vitals.Hurt -= OnHurt; vitals.Died -= OnDied; }
-        if (director != null) { director.Radio -= ShowRadio; }
+        if (director != null) { director.Radio -= ShowRadio; director.WaveStarted -= OnWaveStarted; director.WaveCleared -= OnWaveCleared; }
+        if (points != null) points.Earned -= OnEarned;
+        points = null;
+    }
+
+    // ---------------- waves & points ----------------
+
+    void OnWaveStarted(int wave)
+    {
+        waveBanner.text = $"WAVE {wave}";
+        waveBanner.color = HudKit.Danger;
+        waveSub.text = wave == 1 ? "hold the armory" : $"{director.KeysInWave(wave)} keys";
+        bannerAt = Time.unscaledTime;
+    }
+
+    void OnWaveCleared(int wave)
+    {
+        waveBanner.text = $"WAVE {wave} CLEARED";
+        waveBanner.color = new Color(1f, .85f, .3f, 1f);
+        waveSub.text = "reload. restock. they're coming back.";
+        bannerAt = Time.unscaledTime;
+    }
+
+    void OnEarned(int amount, string label)
+    {
+        pointsBumpAt = Time.unscaledTime;
+        var t = HudKit.Txt("Pop", popRoot, string.IsNullOrEmpty(label) ? 26 : 30, TextAnchor.MiddleRight);
+        t.text = string.IsNullOrEmpty(label) ? $"+{amount}" : $"+{amount}  {label}";
+        t.color = string.IsNullOrEmpty(label) ? HudKit.Ivory : new Color(1f, .85f, .3f, 1f);
+        HudKit.Place(t.rectTransform, new Vector2(1f, 0f), new Vector2(0f, 0f), new Vector2(500f, 34f));
+        pops.Add((t, Time.unscaledTime));
+        while (pops.Count > 6) { Destroy(pops[0].text.gameObject); pops.RemoveAt(0); }
+    }
+
+    void UpdateWavesAndPoints(float now)
+    {
+        if (points == null && PlayerPoints.Instance != null)
+        {
+            points = PlayerPoints.Instance;
+            points.Earned += OnEarned;
+        }
+        bool alive = deathAt < 0f;
+
+        // Top right: where you are in the hunt.
+        if (director != null)
+            waveText.text = director.Current == KeyHordeDirector.Phase.Wave ? $"WAVE {director.Wave}   KEYS LEFT {director.KeysLeft}"
+                          : director.Current == KeyHordeDirector.Phase.Break ? $"WAVE {director.Wave} CLEARED" : "";
+
+        // Big banner: fades in, holds, fades out.
+        float b = now - bannerAt;
+        bool banner = alive && b < 3f;
+        waveBanner.gameObject.SetActive(banner);
+        waveSub.gameObject.SetActive(banner);
+        if (banner)
+        {
+            float a = Mathf.Clamp01(b / .25f) * (1f - Mathf.Clamp01((b - 2.3f) / .7f));
+            Color c = waveBanner.color; c.a = a; waveBanner.color = c;
+            waveSub.color = new Color(.85f, .85f, .85f, a);
+            waveBanner.rectTransform.localScale = Vector3.one * (1.25f - .25f * Mathf.Clamp01(b / .2f));
+        }
+
+        // Between waves: the countdown.
+        bool onBreak = alive && director != null && director.Current == KeyHordeDirector.Phase.Break && b > 2.5f;
+        breakText.gameObject.SetActive(onBreak);
+        if (onBreak)
+        {
+            int s = Mathf.CeilToInt(director.BreakSecondsLeft);
+            breakText.text = $"NEXT WAVE IN {s}";
+            breakText.color = s <= 3 ? (Mathf.Repeat(now * 4f, 1f) < .5f ? HudKit.Danger : Color.white) : HudKit.Ivory;
+        }
+
+        // Points, with the pop-ups sliding up out of them.
+        bool showPoints = alive && points != null;
+        pointsText.gameObject.SetActive(showPoints);
+        pointsLabel.gameObject.SetActive(showPoints);
+        if (showPoints)
+        {
+            pointsText.text = points.Points.ToString();
+            float bump = Mathf.Clamp01(1f - (now - pointsBumpAt) / .2f);
+            pointsText.rectTransform.localScale = Vector3.one * (1f + .15f * bump);
+            pointsText.color = Color.Lerp(new Color(1f, .85f, .3f, 1f), Color.white, bump);
+        }
+        for (int i = pops.Count - 1; i >= 0; i--)
+        {
+            float age = now - pops[i].born;
+            if (age > 1.1f || !alive) { Destroy(pops[i].text.gameObject); pops.RemoveAt(i); continue; }
+            int slot = pops.Count - 1 - i;
+            pops[i].text.rectTransform.anchoredPosition = new Vector2(-10f * age, 8f + slot * 30f + 40f * age);
+            Color c = pops[i].text.color; c.a = 1f - Mathf.Clamp01((age - .7f) / .4f);
+            pops[i].text.color = c;
+        }
     }
 
     void OnDestroy() { if (root != null) Destroy(root); }
@@ -264,8 +361,7 @@ public sealed class BlackBoxHUD : MonoBehaviour
         int frames = Mathf.FloorToInt(Mathf.Repeat(Time.time * 30f, 30f));
         timecodeText.text = $"{dateText}   {seconds / 3600 % 24:00}:{seconds / 60 % 60:00}:{seconds % 60:00}:{frames:00}";
 
-        if (director != null)
-            waveText.text = director.Current != KeyHordeDirector.Phase.Starting ? $"KEYS {KeyHorde.AliveCount}   {(int)director.SurvivedSeconds / 60:00}:{(int)director.SurvivedSeconds % 60:00} ALIVE" : "";
+        UpdateWavesAndPoints(now);
 
         radioText.gameObject.SetActive(now < radioUntil);
 
@@ -413,8 +509,31 @@ public sealed class BlackBoxHUD : MonoBehaviour
         HudKit.Place(timecodeText.rectTransform, new Vector2(0f, 1f), new Vector2(72f, -66f), new Vector2(600f, 30f));
 
         // Top-right: wave.
-        waveText = HudKit.Txt("Wave", t, 26, TextAnchor.MiddleRight);
-        HudKit.Place(waveText.rectTransform, new Vector2(1f, 1f), new Vector2(-40f, -34f), new Vector2(500f, 34f));
+        waveText = HudKit.Txt("Wave", t, 30, TextAnchor.MiddleRight);
+        HudKit.Place(waveText.rectTransform, new Vector2(1f, 1f), new Vector2(-40f, -36f), new Vector2(600f, 38f));
+
+        // Wave banner (start / cleared) and the between-waves countdown.
+        waveBanner = HudKit.Txt("Wave Banner", t, 96, TextAnchor.MiddleCenter);
+        HudKit.Place(waveBanner.rectTransform, new Vector2(.5f, .5f), new Vector2(0f, 230f), new Vector2(1400f, 120f));
+        waveBanner.gameObject.SetActive(false);
+        waveSub = HudKit.Txt("Wave Sub", t, 30, TextAnchor.MiddleCenter, FontStyle.Italic);
+        HudKit.Place(waveSub.rectTransform, new Vector2(.5f, .5f), new Vector2(0f, 160f), new Vector2(1400f, 40f));
+        waveSub.gameObject.SetActive(false);
+        breakText = HudKit.Txt("Next Wave", t, 40, TextAnchor.MiddleCenter);
+        HudKit.Place(breakText.rectTransform, new Vector2(.5f, 1f), new Vector2(0f, -110f), new Vector2(800f, 50f));
+        breakText.gameObject.SetActive(false);
+
+        // Points, bottom right above the gun panel, with pop-ups rising out of them.
+        pointsLabel = HudKit.Txt("Points Label", t, 18, TextAnchor.LowerRight, FontStyle.Normal);
+        pointsLabel.text = "POINTS";
+        HudKit.Place(pointsLabel.rectTransform, new Vector2(1f, 0f), new Vector2(-40f, 200f), new Vector2(300f, 24f));
+        pointsText = HudKit.Txt("Points", t, 48, TextAnchor.LowerRight);
+        pointsText.rectTransform.pivot = new Vector2(1f, 0f);
+        HudKit.Place(pointsText.rectTransform, new Vector2(1f, 0f), new Vector2(-40f, 146f), new Vector2(300f, 56f));
+        pointsText.gameObject.SetActive(false);
+        pointsLabel.gameObject.SetActive(false);
+        popRoot = HudKit.Rect("Point Pops", t);
+        HudKit.Place(popRoot, new Vector2(1f, 0f), new Vector2(-40f, 226f), new Vector2(10f, 10f));
 
         // Bottom-centre: radio subtitles.
         radioText = HudKit.Txt("Radio", t, 28, TextAnchor.MiddleCenter, FontStyle.Italic);

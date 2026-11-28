@@ -2,65 +2,55 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 /// <summary>
-/// The hunt. No waves: the keys never stop coming, they come in tides.
-/// A pacing director (build up, peak, back off) watches how hard you're being hit:
-/// - BUILD: keys glitch in one by one, out of your sight, until the pack is the size the
-///   run has earned (it grows the longer you survive, up to <see cref="maxPack"/>).
-/// - PEAK: when you're taking a beating, or the pack is full and you're holding out, it lets
-///   the pressure spike for a while: a blackout, the pack at full strength, no let-up.
-/// - RELAX: after a peak it stops sending keys for a few seconds so you can breathe, reload,
-///   and grab the ammo it drops in the armory. Then it starts building again.
-/// Dead keys are replaced. You hold out until the escape pod is ready (and they keep coming).
-/// The HUD listens to <see cref="Radio"/>.
+/// The hunt, in waves.
+/// - WAVE n: a set number of keys glitch in, a few at a time (never more than the wave's cap
+///   alive at once), just out of your sight. Kill them all to clear it.
+/// - BREAK: a short breather. Ammo restocks in the armory, points for the clear, then the next
+///   wave, bigger: more keys, more at once, faster arrivals.
+/// - The keys learn: the first wave only bites, whips and rushes; spears, dives, spit, screams
+///   and pins come in over the next waves. From wave 5 they get tougher every wave.
+/// - Mid-wave the power can go out. At the escape wave the pod is ready... and they keep coming.
+/// The HUD listens to <see cref="Radio"/>, <see cref="WaveStarted"/> and <see cref="WaveCleared"/>.
 /// </summary>
 public sealed class KeyHordeDirector : MonoBehaviour
 {
-    public enum Phase { Starting, Build, Peak, Relax }
+    public enum Phase { Starting, Wave, Break }
 
     [Tooltip("Tense but fair: scary, readable, beatable. Brutal: for when you've learned the loop.")]
     [SerializeField] DifficultyLevel difficulty = DifficultyLevel.Brutal;
     [SerializeField] KeyFlyer flyerPrefab;
     [SerializeField] float startDelay = 4f;
 
-    [Header("Pack size")]
-    [Tooltip("Keys hunting you at the start.")]
-    [FormerlySerializedAs("flockSizeFirstWave")]
-    [SerializeField] int startPack = 2;
-    [Tooltip("Most keys hunting you at once.")]
-    [FormerlySerializedAs("flockSizeCap")]
-    [SerializeField] int maxPack = 5;
-    [Tooltip("One more key in the pack every this many seconds survived.")]
-    [SerializeField] float secondsPerExtraKey = 40f;
-    [Tooltip("Seconds between keys glitching in while building (random between).")]
-    [SerializeField] Vector2 spawnGap = new Vector2(2.5f, 5f);
-
-    [Header("Pacing")]
-    [Tooltip("Intensity added per point of damage you take.")]
-    [SerializeField] float intensityPerDamage = 1f / 45f;
-    [Tooltip("Intensity lost per second.")]
-    [SerializeField] float intensityDecay = .05f;
-    [Tooltip("Intensity at which it goes to a peak.")]
-    [SerializeField] float peakAt = .85f;
-    [Tooltip("Holding out with a full pack forces a peak after this long.")]
-    [SerializeField] float buildMaxSeconds = 45f;
-    [SerializeField] Vector2 peakSeconds = new Vector2(8f, 12f);
-    [SerializeField] Vector2 relaxSeconds = new Vector2(7f, 11f);
-
-    [Header("Holding out")]
-    [Tooltip("Seconds survived until the escape pod is ready (the hunt keeps going if you stay).")]
-    [SerializeField] float escapeAfterSeconds = 360f;
+    [Header("Waves")]
+    [SerializeField] int firstWaveKeys = 6;
+    [SerializeField] int extraKeysPerWave = 3;
+    [Tooltip("Keys alive at once in wave 1...")]
+    [SerializeField] int firstWaveMaxAlive = 3;
+    [Tooltip("...one more every this many waves...")]
+    [SerializeField] int wavesPerExtraAlive = 2;
+    [Tooltip("...up to this many.")]
+    [SerializeField] int maxAliveCap = 8;
+    [Tooltip("Seconds between keys arriving in wave 1 (random between); shrinks every wave.")]
+    [SerializeField] Vector2 spawnGap = new Vector2(1.5f, 3.5f);
+    [Range(0, .2f)] [SerializeField] float spawnGapShrinkPerWave = .07f;
+    [SerializeField] float breakSeconds = 15f;
+    [Tooltip("From this wave on, keys get this much more health every wave.")]
+    [SerializeField] int tougherFromWave = 5;
+    [SerializeField] float extraHealthPerWave = .08f;
+    [Tooltip("The escape pod is ready after this wave (the waves keep coming if you stay).")]
+    [SerializeField] int escapeWave = 10;
 
     [Header("Lights out (the keys cut the power)")]
+    [SerializeField] int blackoutFromWave = 3;
+    [Range(0, 1)] [SerializeField] float blackoutChancePerWave = .5f;
     [SerializeField] float blackoutSeconds = 6f;
-    [Range(0, 1)] [SerializeField] float blackoutChancePerPeak = .6f;
     [SerializeField] string blackoutRadio = "THEY CUT THE POWER! Flashlight, NOW!";
     [SerializeField] AudioSource blackoutAudio;
     [SerializeField] AudioClip blackoutClip;
 
-    [Header("Ammo (dropped in the armory when it backs off)")]
+    [Header("Ammo (dropped in the armory between waves)")]
     [SerializeField] AmmoPickup ammoPrefab;
     [SerializeField] Transform[] ammoSpawnPoints;
     [SerializeField] int ammoBoxesPerBreak = 2;
@@ -79,37 +69,42 @@ public sealed class KeyHordeDirector : MonoBehaviour
         "Watch the ceiling! They drop blade-first!",
         "If you go down, GET UP. They swallow you whole.",
     };
-    [SerializeField] string[] peakRadio =
+    [SerializeField] string[] waveRadio =
     {
-        "There's too many of them! Keep moving!",
-        "Don't stand still! DON'T STAND STILL!",
-        "They're all coming at once!",
+        "Here they come again!",
+        "More of them. MORE of them!",
+        "They're coming through the vents!",
+        "Hold the armory. HOLD IT.",
     };
-    [SerializeField] string[] relaxRadio =
+    [SerializeField] string[] clearRadio =
     {
         "...they pulled back. Grab ammo from the racks. Now.",
         "It's quiet. That's worse. Reload.",
-        "They're feeding. Use it. Get ammo.",
+        "You're still alive? Get ammo. They'll be back.",
     };
     [SerializeField] string escapeRadio = "POD 3 IS READY. You made it. ...they're still coming.";
 
     /// <summary>The director running the current level (null if none).</summary>
     public static KeyHordeDirector Active { get; private set; }
     public Phase Current { get; private set; }
-    public float Intensity { get; private set; }
+    public int Wave { get; private set; }
+    /// <summary>Keys of this wave still to kill (alive + not arrived yet).</summary>
+    public int KeysLeft => toSpawn + Alive;
+    public int Alive => flyersAlive.Count;
+    public int MaxAlive { get; private set; }
+    public float BreakSecondsLeft => Current == Phase.Break ? Mathf.Max(0f, breakUntil - Time.time) : 0f;
     public float SurvivedSeconds { get; private set; }
-    public int PackSize => Mathf.Min(maxPack, startPack + Mathf.FloorToInt(SurvivedSeconds / Mathf.Max(1f, secondsPerExtraKey)));
-    public int Alive => flyersAlive.Count + pending;
     public bool EscapeReady { get; private set; }
 
     public event Action<string> Radio;
     public event Action<Phase> PhaseChanged;
+    public event Action<int> WaveStarted, WaveCleared;
     public event Action EscapeUnlocked;
     public event Action BlackoutStarted;
 
     readonly List<KeyFlyer> flyersAlive = new List<KeyFlyer>();
-    int pending;
-    float phaseUntil, phaseStarted, nextSpawn;
+    int toSpawn, spawnedThisWave, blackoutAtKeysLeft = -1;
+    float phaseUntil, breakUntil, nextSpawn;
     bool firstArrival = true;
 
     void Awake()
@@ -135,7 +130,7 @@ public sealed class KeyHordeDirector : MonoBehaviour
             var close = target.GetComponent<PlayerCloseCombat>();
             if (close != null) close.ApplyDifficulty(p.grabFailDamage, p.grabPresses);
             if (target.Gun != null) target.Gun.SetReserve(p.startingReserve);
-            if (target.Health != null) target.Health.Damaged += OnPlayerDamaged;
+            if (target.GetComponent<PlayerPoints>() == null) target.gameObject.AddComponent<PlayerPoints>();
         }
         foreach (AmmoPickup box in FindObjectsByType<AmmoPickup>()) box.SetRounds(p.roundsPerBox);
         Current = Phase.Starting;
@@ -145,88 +140,95 @@ public sealed class KeyHordeDirector : MonoBehaviour
     void OnDestroy()
     {
         if (Active == this) Active = null;
-        KeyTarget target = KeyTarget.Current;
-        if (target != null && target.Health != null) target.Health.Damaged -= OnPlayerDamaged;
     }
-
-    void OnPlayerDamaged(DamageInfo info) => Intensity = Mathf.Clamp01(Intensity + info.amount * intensityPerDamage);
 
     void Update()
     {
         KeyTarget target = KeyTarget.Current;
         if (target == null || target.IsDead || flyerPrefab == null) return;
         flyersAlive.RemoveAll(f => f == null || f.IsDead);
-
         if (Current != Phase.Starting) SurvivedSeconds += Time.deltaTime;
-        Intensity = Mathf.Max(0f, Intensity - intensityDecay * Time.deltaTime);
-        // Keys right on top of you count as pressure too.
-        foreach (KeyFlyer k in flyersAlive)
-            if (k != null && Vector3.Distance(k.transform.position, target.Position) < 3f) Intensity = Mathf.Min(1f, Intensity + .04f * Time.deltaTime);
-
-        if (!EscapeReady && SurvivedSeconds >= escapeAfterSeconds)
-        {
-            EscapeReady = true;
-            Radio?.Invoke(escapeRadio);
-            EscapeUnlocked?.Invoke();
-        }
 
         switch (Current)
         {
             case Phase.Starting:
-                if (Time.time >= phaseUntil) { Radio?.Invoke(startRadio); Enter(Phase.Build); }
+                if (Time.time >= phaseUntil) { Radio?.Invoke(startRadio); StartWave(1); }
                 break;
 
-            case Phase.Build:
-                if (Alive < PackSize && Time.time >= nextSpawn) SpawnOne(target, spawnGap);
-                if (Intensity >= peakAt || (Alive >= PackSize && Time.time - phaseStarted > buildMaxSeconds)) Enter(Phase.Peak);
+            case Phase.Wave:
+                if (toSpawn > 0 && Alive < MaxAlive && Time.time >= nextSpawn) SpawnOne(target);
+                if (blackoutAtKeysLeft >= 0 && KeysLeft <= blackoutAtKeysLeft && Alive > 0)
+                {
+                    blackoutAtKeysLeft = -1;
+                    StartCoroutine(BlackoutSoon());
+                }
+                if (toSpawn == 0 && Alive == 0) ClearWave();
                 break;
 
-            case Phase.Peak:
-                // Full pack, replacements come fast.
-                if (Alive < PackSize && Time.time >= nextSpawn) SpawnOne(target, spawnGap * .5f);
-                if (Time.time >= phaseUntil) Enter(Phase.Relax);
-                break;
-
-            case Phase.Relax:
-                // Nothing new arrives; whoever's left keeps hunting. Come back early if you've
-                // cleared them all.
-                if (Time.time >= phaseUntil || (Alive == 0 && Time.time - phaseStarted > 4f)) Enter(Phase.Build);
+            case Phase.Break:
+                if (Time.time >= breakUntil) StartWave(Wave + 1);
                 break;
         }
     }
+
+    // ---------------- waves ----------------
+
+    /// <summary>How many keys a wave sends.</summary>
+    public int KeysInWave(int wave) => firstWaveKeys + extraKeysPerWave * Mathf.Max(0, wave - 1);
+
+    void StartWave(int wave)
+    {
+        Wave = wave;
+        toSpawn = KeysInWave(wave);
+        spawnedThisWave = 0;
+        MaxAlive = Mathf.Min(maxAliveCap, firstWaveMaxAlive + (wave - 1) / Mathf.Max(1, wavesPerExtraAlive));
+        nextSpawn = Time.time + .5f;
+        // Sometimes the power goes out partway through (from the blackout wave on).
+        blackoutAtKeysLeft = wave >= blackoutFromWave && UnityEngine.Random.value < blackoutChancePerWave
+            ? Mathf.RoundToInt(toSpawn * UnityEngine.Random.Range(.35f, .7f)) : -1;
+        if (wave > 1) Radio?.Invoke(waveRadio[UnityEngine.Random.Range(0, waveRadio.Length)]);
+        Enter(Phase.Wave);
+        WaveStarted?.Invoke(wave);
+    }
+
+    void ClearWave()
+    {
+        breakUntil = Time.time + breakSeconds;
+        Enter(Phase.Break);
+        Radio?.Invoke(Wave == escapeWave ? escapeRadio : clearRadio[UnityEngine.Random.Range(0, clearRadio.Length)]);
+        Restock();
+        WaveCleared?.Invoke(Wave);
+        if (Wave >= escapeWave && !EscapeReady)
+        {
+            EscapeReady = true;
+            EscapeUnlocked?.Invoke();
+        }
+    }
+
+    /// <summary>Skip the rest of the break (a "ready" button later; tests now).</summary>
+    public void StartNextWaveNow() { if (Current == Phase.Break) breakUntil = Time.time; }
 
     void Enter(Phase next)
     {
         Current = next;
-        phaseStarted = Time.time;
-        switch (next)
-        {
-            case Phase.Build:
-                nextSpawn = Time.time + .5f;
-                break;
-            case Phase.Peak:
-                phaseUntil = Time.time + UnityEngine.Random.Range(peakSeconds.x, peakSeconds.y);
-                Radio?.Invoke(peakRadio[UnityEngine.Random.Range(0, peakRadio.Length)]);
-                if (UnityEngine.Random.value < blackoutChancePerPeak) StartCoroutine(BlackoutSoon());
-                break;
-            case Phase.Relax:
-                phaseUntil = Time.time + UnityEngine.Random.Range(relaxSeconds.x, relaxSeconds.y);
-                Intensity *= .3f;
-                Radio?.Invoke(relaxRadio[UnityEngine.Random.Range(0, relaxRadio.Length)]);
-                Restock();
-                break;
-        }
         PhaseChanged?.Invoke(next);
     }
 
-    void SpawnOne(KeyTarget target, Vector2 gap)
+    void SpawnOne(KeyTarget target)
     {
-        nextSpawn = Time.time + UnityEngine.Random.Range(gap.x, gap.y);
-        if (firstArrival || UnityEngine.Random.value < .3f) Radio?.Invoke(arriveRadio[UnityEngine.Random.Range(0, arriveRadio.Length)]);
+        float shrink = Mathf.Pow(1f - spawnGapShrinkPerWave, Wave - 1);
+        nextSpawn = Time.time + Mathf.Max(.5f, UnityEngine.Random.Range(spawnGap.x, spawnGap.y) * shrink);
+        // A wave opens with its whole pack arriving fast; an emptied room refills fast too.
+        spawnedThisWave++;
+        if (spawnedThisWave < MaxAlive || Alive == 0) nextSpawn = Time.time + UnityEngine.Random.Range(.5f, .9f);
+        toSpawn--;
+        if (firstArrival || UnityEngine.Random.value < .2f) Radio?.Invoke(arriveRadio[UnityEngine.Random.Range(0, arriveRadio.Length)]);
         firstArrival = false;
         Vector3 at = AppearPoint(target);
         KeyFlyer key = Instantiate(flyerPrefab, at, Quaternion.identity);
         key.ApplyDifficulty(Difficulty.Current);
+        float health = Wave >= tougherFromWave ? 1f + extraHealthPerWave * (Wave - tougherFromWave + 1) : 1f;
+        key.ApplyWave(Wave, health);
         key.Died += f => flyersAlive.Remove(f);
         flyersAlive.Add(key);
         key.Spawn(at, target.Position - at);
@@ -234,8 +236,8 @@ public sealed class KeyHordeDirector : MonoBehaviour
 
     IEnumerator BlackoutSoon()
     {
-        yield return new WaitForSeconds(UnityEngine.Random.Range(1f, 3f));
-        if (Current != Phase.Peak || flyersAlive.Count == 0) yield break;
+        yield return new WaitForSeconds(UnityEngine.Random.Range(.5f, 2f));
+        if (Current != Phase.Wave || flyersAlive.Count == 0) yield break;
         if (KeyTarget.Current != null && KeyTarget.Current.IsDead) yield break;
         TriggerBlackout();
     }
@@ -270,9 +272,6 @@ public sealed class KeyHordeDirector : MonoBehaviour
         Radio?.Invoke(blackoutRadio);
         BlackoutStarted?.Invoke();
     }
-
-    /// <summary>Force a phase (tests / scripted moments).</summary>
-    public void ForcePhase(Phase phase) => Enter(phase);
 
     void Restock()
     {

@@ -271,6 +271,35 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         chompWindUp *= tell; whipWindUp *= tell; spearWindUp *= tell; diveAimSeconds *= tell; spitWindUp *= tell;
     }
 
+    /// <summary>The attacks a key is allowed to use (the waves bring them in one by one).</summary>
+    [Flags]
+    public enum Moves
+    {
+        None = 0, Chomp = 1, Whip = 2, Rush = 4, Swallow = 8, Spear = 16, Dive = 32, Spit = 64, Scream = 128, Pin = 256,
+        All = ~0,
+    }
+
+    public Moves Allowed { get; private set; } = Moves.All;
+
+    /// <summary>What the keys know by this wave: the basics first, the nasty stuff as it goes on.</summary>
+    public static Moves MovesForWave(int wave)
+    {
+        Moves m = Moves.Chomp | Moves.Whip | Moves.Rush | Moves.Swallow;
+        if (wave >= 2) m |= Moves.Spear;
+        if (wave >= 3) m |= Moves.Dive;
+        if (wave >= 4) m |= Moves.Spit | Moves.Scream | Moves.Pin;
+        return m;
+    }
+
+    /// <summary>Set up for a wave: its moveset, and <paramref name="healthScale"/> times the health.</summary>
+    public void ApplyWave(int wave, float healthScale)
+    {
+        Allowed = MovesForWave(wave);
+        if (healthScale > 1.001f) health.SetMax(health.Max * healthScale, true);
+    }
+
+    bool Can(Moves m) => (Allowed & m) != 0;
+
     // ================= brain =================
 
     void Update()
@@ -599,14 +628,14 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
     bool ChooseAttack(KeyTarget target, PlayerEaten prey, float distance)
     {
         var options = new List<(State s, float w)>();
-        if (prey != null && prey.CanBeExecuted && distance < 7f) options.Add((State.EatWindUp, 6f));
-        if (distance <= chompRange) options.Add((State.BiteWindUp, 5f));
-        if (distance >= whipRange.x && distance <= whipRange.y) options.Add((State.WhipWindUp, 4f));
-        if (distance >= spearRange.x && distance <= spearRange.y && HasLineTo(target.EyePosition)) options.Add((State.SpearWindUp, 3.5f));
-        if (distance >= spitRange.x && distance <= spitRange.y && HasLineTo(target.EyePosition)) options.Add((State.SpitWindUp, 2.5f));
-        if (Time.time >= nextDive && CeilingHeight(target.Position) - FloorHeight() > 3.5f) options.Add((State.DiveRise, 3f));
-        if (Time.time >= nextScream && CountKeysNear(14f) >= 2) options.Add((State.Scream, 1.5f));
-        if (distance > chompRange && distance < 12f && HasLineTo(target.EyePosition)) options.Add((State.Hunt, 10f * rushChance)); // rush in
+        if (Can(Moves.Swallow) && prey != null && prey.CanBeExecuted && distance < 7f) options.Add((State.EatWindUp, 6f));
+        if (Can(Moves.Chomp) && distance <= chompRange) options.Add((State.BiteWindUp, 5f));
+        if (Can(Moves.Whip) && distance >= whipRange.x && distance <= whipRange.y) options.Add((State.WhipWindUp, 4f));
+        if (Can(Moves.Spear) && distance >= spearRange.x && distance <= spearRange.y && HasLineTo(target.EyePosition)) options.Add((State.SpearWindUp, 3.5f));
+        if (Can(Moves.Spit) && distance >= spitRange.x && distance <= spitRange.y && HasLineTo(target.EyePosition)) options.Add((State.SpitWindUp, 2.5f));
+        if (Can(Moves.Dive) && Time.time >= nextDive && CeilingHeight(target.Position) - FloorHeight() > 3.5f) options.Add((State.DiveRise, 3f));
+        if (Can(Moves.Scream) && Time.time >= nextScream && CountKeysNear(14f) >= 2) options.Add((State.Scream, 1.5f));
+        if (Can(Moves.Rush) && distance > chompRange && distance < 12f && HasLineTo(target.EyePosition)) options.Add((State.Hunt, 10f * rushChance)); // rush in
         if (options.Count == 0) return false;
 
         float total = 0f; foreach (var o in options) total += o.w;
@@ -644,11 +673,11 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         }
     }
 
-    /// <summary>The director has backed off (or there is none): time to eat.</summary>
+    /// <summary>Between waves (or no director): time to eat.</summary>
     static bool IsLull()
     {
         KeyHordeDirector d = KeyHordeDirector.Active;
-        return d == null || d.Current == KeyHordeDirector.Phase.Relax;
+        return d == null || d.Current == KeyHordeDirector.Phase.Break;
     }
 
     void DoScream(KeyTarget target, PlayerEaten prey)
@@ -687,7 +716,7 @@ public sealed class KeyFlyer : MonoBehaviour, IKickable
         Vector3 toMe = Flat(transform.position - target.Position);
         bool behind = toMe.sqrMagnitude > .01f && target.View != null
                       && Vector3.Angle(Flat(target.View.transform.forward), toMe) > pinBehindAngle;
-        return (rushBite || behind || prey.IsDown) && UnityEngine.Random.value < pinChance;
+        return Can(Moves.Pin) && (rushBite || behind || prey.IsDown) && UnityEngine.Random.value < pinChance;
     }
 
     /// <summary>Slam the player to the floor and get on top of them. False if they can't be pinned now.</summary>
