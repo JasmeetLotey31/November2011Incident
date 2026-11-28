@@ -1,7 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// Red emergency light: a slow alarm pulse, plus a broken flicker that sometimes drops it out.
+/// A station light on emergency power: a slow alarm pulse (red emergency lights) or steady
+/// (ceiling fluorescents, pulse depth 0), plus a broken flicker that sometimes drops it out.
+/// Optional glowing parts (a fixture's tubes) follow the light.
 /// Put on a Light. Each one gets its own timing so the room never pulses in sync.
 /// </summary>
 [RequireComponent(typeof(Light))]
@@ -11,6 +13,9 @@ public sealed class EmergencyLight : MonoBehaviour
     [Range(0, 1)] [SerializeField] float pulseDepth = .55f;
     [Tooltip("0 = steady, 1 = badly broken.")]
     [Range(0, 1)] [SerializeField] float brokenness = .25f;
+    [Tooltip("Optional glowing parts (the fixture's tubes) that brighten and die with the light.")]
+    [SerializeField] Renderer[] glows;
+    [SerializeField] Color glowColor = Color.white;
 
     /// <summary>All station lights go (nearly) dark until this time: the keys cut the power.</summary>
     public static float BlackoutUntil { get; private set; } = -1f;
@@ -44,5 +49,20 @@ public sealed class EmergencyLight : MonoBehaviour
         blackoutFade = IsBlackout ? 0f : Mathf.MoveTowards(blackoutFade, 1f, Time.deltaTime * Random.Range(.5f, 3f));
         float power = IsBlackout ? .04f : (Random.value < blackoutFade ? 1f : .1f);
         lightSource.intensity = baseIntensity * pulse * buzz * power;
+        if (glows != null && glows.Length > 0)
+        {
+            block ??= new MaterialPropertyBlock();
+            float level = baseIntensity > 0f ? lightSource.intensity / baseIntensity : 0f;
+            foreach (Renderer r in glows)
+            {
+                if (r == null) continue;
+                r.GetPropertyBlock(block);
+                block.SetColor(EmissionId, glowColor * level);
+                r.SetPropertyBlock(block);
+            }
+        }
     }
+
+    static readonly int EmissionId = Shader.PropertyToID("_EmissionColor");
+    MaterialPropertyBlock block;
 }
