@@ -670,4 +670,5 @@ def main():
         render_previews(sets, argv[argv.index("--preview") + 1])
 
 
-main()
+if __name__ == "__main__":      # build_crew.py imports the painter from here
+    main()
