@@ -6,6 +6,7 @@
 //    polygons in dark interiors (Forward+ cluster loop and plain Forward both supported).
 //  - Optional glow (_EmissionColor; scripts can drive it with a MaterialPropertyBlock).
 //  - Lighting capped at Max Light (default 1.5x) so nothing burns out to white up close.
+//  - Optional world-space tiling (Tile the texture in world space) for walls, floors and beams.
 //  - Fog, GPU instancing, SRP Batcher compatible.
 // Use point-filtered, small textures (Filter Mode: Point, no mipmaps).
 Shader "Retro/PS1 Lit"
@@ -20,6 +21,8 @@ Shader "Retro/PS1 Lit"
         _MaxLight ("Max Light (caps blow-out right in front of a lamp)", Range(1, 4)) = 1.5
         [HDR] _EmissionColor ("Glow", Color) = (0, 0, 0, 0)
         [Toggle(_VERTEX_COLORS)] _VertexColors ("Use mesh colours (per-triangle colour models)", Float) = 0
+        [Toggle(_WORLD_UV)] _WorldUV ("Tile the texture in world space (walls, floors, beams)", Float) = 0
+        _WorldUVScale ("World tiles per metre: across walls, up walls, on floors", Vector) = (0.5, 0.25, 0.5, 0)
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
     }
 
@@ -38,6 +41,7 @@ Shader "Retro/PS1 Lit"
             half _Lighting;
             half _MaxLight;
             half4 _EmissionColor;
+            float4 _WorldUVScale;
         CBUFFER_END
         TEXTURE2D(_BaseMap);
         SAMPLER(sampler_BaseMap);
@@ -67,6 +71,7 @@ Shader "Retro/PS1 Lit"
             #pragma multi_compile_instancing
             #pragma multi_compile_fog
             #pragma shader_feature_local _VERTEX_COLORS
+            #pragma shader_feature_local _WORLD_UV
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
@@ -129,7 +134,17 @@ Shader "Retro/PS1 Lit"
                 o.positionWS = positionWS;
                 o.normalWS = normalWS;
 
-                float2 uv = TRANSFORM_TEX(v.uv, _BaseMap);
+                #if defined(_WORLD_UV)
+                    // Planar by the face's main axis, so big boxes tile at a fixed size per metre
+                    // (floors and ceilings on x/z; walls across and up, v = 0 at floor level).
+                    float3 an = abs(normalWS);
+                    float2 uv = an.y > an.x && an.y > an.z ? positionWS.xz * _WorldUVScale.z
+                              : an.x > an.z ? positionWS.zy * _WorldUVScale.xy
+                                            : positionWS.xy * _WorldUVScale.xy;
+                    uv = uv * _BaseMap_ST.xy + _BaseMap_ST.zw;
+                #else
+                    float2 uv = TRANSFORM_TEX(v.uv, _BaseMap);
+                #endif
                 o.uv = uv;
                 o.uvAffine = uv;
                 o.positionCS = positionCS;

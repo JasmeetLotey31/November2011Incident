@@ -24,7 +24,8 @@ Material:
   m_Shader: {fileID: 4800000, guid: 2c379791d3470454bba5af83175d047d, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
+  m_ValidKeywords:
+  - _WORLD_UV
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 1
@@ -38,7 +39,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BaseMap:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 2800000, guid: 7be8d605e44d94c4284755e4214653c2, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BumpMap:
@@ -96,7 +97,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _AddPrecomputedVelocity: 0
-    - _Affine: 1
+    - _Affine: 0.3
     - _AlphaClip: 0
     - _AlphaToMask: 0
     - _Blend: 0
@@ -115,6 +116,7 @@ Material:
     - _Glossiness: 0
     - _GlossyReflections: 0
     - _Lighting: 1
+    - _MaxLight: 1.5
     - _Metallic: 0.8
     - _OcclusionStrength: 1
     - _Parallax: 0.005
@@ -130,13 +132,15 @@ Material:
     - _Surface: 0
     - _VertexColors: 0
     - _WorkflowMode: 1
+    - _WorldUV: 1
     - _XRMotionVectorsPass: 1
     - _ZWrite: 1
     m_Colors:
-    - _BaseColor: {r: 0.3, g: 0.31, b: 0.34, a: 1}
+    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 0.089999996, g: 0.089999996, b: 0.09999997, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _SnapResolution: {r: 320, g: 240, b: 0, a: 0}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
+    - _WorldUVScale: {r: 1, g: 1, b: 1, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
