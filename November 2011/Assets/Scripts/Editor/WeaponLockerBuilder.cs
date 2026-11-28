@@ -37,7 +37,6 @@ public static class WeaponLockerBuilder
     {
         Material metal = Mat("Station_Rack"), dark = Mat("Vent_Dark"), grate = Mat("Station_Rack"), hazard = Mat("Station_Hazard");
         Material gunMetal = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Weapons/NailGun_Metal.mat");
-        Material screen = Glow("Locker_Screen", Color.black, new Color(1f, .55f, .15f) * .06f);
         Material strip = Glow("Locker_Strip", new Color(.2f, .2f, .2f), new Color(1f, .85f, .62f) * 1.6f);
         Material bulb = Glow("Locker_Lamp", new Color(.3f, .2f, .1f), new Color(1f, .6f, .25f) * 2.2f);
 
@@ -95,36 +94,17 @@ public static class WeaponLockerBuilder
         Box("Handle", door, new Vector3(W - .08f, 0f, .035f), new Vector3(.03f, .16f, .03f), gunMetal);
         Box("Lock Plate", door, new Vector3(W - .08f, -.14f, .02f), new Vector3(.06f, .08f, .012f), dark);
 
-        // Stenciled header plate: station property, not a shop.
+        // Stenciled header plate: station property, not a shop (painted in the pixel font: crisp at PS1 resolution).
         Box("Header", r, new Vector3(0f, 1.91f, .455f), new Vector3(.96f, .13f, .012f), dark);
-        var stencilGo = new GameObject("Stencil", typeof(RectTransform), typeof(Canvas));
-        stencilGo.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
-        var srt = (RectTransform)stencilGo.transform;
-        srt.SetParent(r, false);
-        srt.sizeDelta = new Vector2(940f, 120f);
-        srt.localScale = Vector3.one * .001f;
-        srt.localPosition = new Vector3(0f, 1.91f, .462f);
-        srt.localRotation = Quaternion.Euler(0f, 180f, 0f);
-        Text stencil = ScreenText("Label", srt, 42, Vector2.zero, FontStyle.Bold);
-        stencil.rectTransform.sizeDelta = new Vector2(920f, 100f);
-        stencil.text = $"JUPITER ARMORY  //  {label}";
-        stencil.color = new Color(.78f, .62f, .2f, .85f);
+        string file = Title(gunName);
+        Material header = Painted($"Locker_{file}_Header", HeaderTexture(label, file));
+        Quad("Stencil", r, new Vector3(0f, 1.91f, .4622f), new Vector2(.94f, .11f), header);
 
-        // Terminal above it: amber screen with the locker number, the gun and the price.
+        // Terminal above it: a dark CRT with the gun and the price in amber pixel letters. The text is
+        // painted white; WeaponLocker tints it (amber, green when you buy, red when you can't).
         Box("Terminal", r, new Vector3(0f, 2.33f, .06f), new Vector3(.9f, .44f, .08f), dark);
-        Transform glow = Box("Screen", r, new Vector3(0f, 2.33f, .101f), new Vector3(.82f, .36f, .004f), screen).transform;
-        var canvasGo = new GameObject("Screen Text", typeof(RectTransform), typeof(Canvas));
-        var canvas = canvasGo.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.WorldSpace;
-        var crt = (RectTransform)canvasGo.transform;
-        crt.SetParent(r, false);
-        crt.sizeDelta = new Vector2(820f, 360f);
-        crt.localScale = Vector3.one * .001f;
-        crt.localPosition = new Vector3(0f, 2.33f, .106f);
-        crt.localRotation = Quaternion.Euler(0f, 180f, 0f); // UI faces -Z; the locker faces +Z
-        // Big enough to read at the game's quarter resolution from a couple of metres.
-        Text name = ScreenText("Gun", crt, Mathf.Min(150, Mathf.FloorToInt(780f / (.66f * WeaponLocker.ScreenName(gunName).Length))), new Vector2(0f, 62f), FontStyle.Bold);
-        Text price = ScreenText("Price", crt, 120, new Vector2(0f, -92f), FontStyle.Bold);
+        Material screen = Painted($"Locker_{file}_Screen", ScreenTexture(WeaponLocker.ScreenName(gunName), cost.ToString(), file), lit: false);
+        Transform glow = Quad("Screen", r, new Vector3(0f, 2.33f, .1012f), new Vector2(.82f, .36f), screen).transform;
 
         // Caged amber lamp: a beacon in the dark hall.
         Box("Lamp Cage", r, new Vector3(0f, 2.68f, .1f), new Vector3(.16f, .1f, .12f), metal);
@@ -151,15 +131,14 @@ public static class WeaponLockerBuilder
         so.FindProperty("ammoCost").intValue = ammoCost;
         so.FindProperty("door").objectReferenceValue = door;
         so.FindProperty("display").objectReferenceValue = display.gameObject;
-        so.FindProperty("screenName").objectReferenceValue = name;
-        so.FindProperty("screenPrice").objectReferenceValue = price;
+        so.FindProperty("screenName").objectReferenceValue = null;
+        so.FindProperty("screenPrice").objectReferenceValue = null;
         so.FindProperty("screenGlow").objectReferenceValue = glow.GetComponent<Renderer>();
         so.FindProperty("lamp").objectReferenceValue = lamp;
         so.FindProperty("audioSource").objectReferenceValue = audio;
         so.FindProperty("openClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/NailGun/NailGun_Reload_Open.wav");
         so.FindProperty("closeClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Impacts/Impact_Metal_1.wav");
         so.ApplyModifiedPropertiesWithoutUndo();
-        name.text = WeaponLocker.ScreenName(gunName); price.text = cost.ToString();
 
         if (!AssetDatabase.IsValidFolder(OutDir)) AssetDatabase.CreateFolder("Assets/Prefabs", "Level");
         string path = $"{OutDir}/{root.name}.prefab";
@@ -168,6 +147,60 @@ public static class WeaponLockerBuilder
         foreach (var mf in root.GetComponentsInChildren<MeshFilter>(true)) tris += mf.sharedMesh != null ? mf.sharedMesh.triangles.Length / 3 : 0;
         Object.DestroyImmediate(root);
         return $"{path}: {tris} triangles";
+    }
+
+    /// <summary>A quad facing the locker's front (+Z).</summary>
+    static GameObject Quad(string name, Transform parent, Vector3 pos, Vector2 size, Material mat)
+    {
+        var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        q.name = name;
+        Object.DestroyImmediate(q.GetComponent<Collider>());
+        q.transform.SetParent(parent, false);
+        q.transform.localPosition = pos;
+        q.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+        q.transform.localScale = new Vector3(size.x, size.y, 1f);
+        q.GetComponent<MeshRenderer>().sharedMaterial = mat;
+        q.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        return q;
+    }
+
+    static Texture2D HeaderTexture(string text, string file)
+    {
+        int w = PixelFont.Width(text) + 8, h = 13;
+        var px = new Color[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                px[y * w + x] = PixelFont.Stepped(new Color(.05f, .05f, .05f), new Color(.11f, .11f, .1f), PixelFont.Blotch(x * .2f, y * .2f, 3));
+        PixelFont.Stamp(px, w, h, text, w / 2, h / 2, 1, new Color(.78f, .62f, .2f), .2f, file.Length);
+        return PixelFont.Save(px, w, h, $"Assets/Textures/Station/Locker_{file}_Header.png");
+    }
+
+    static Texture2D ScreenTexture(string gun, string price, string file)
+    {
+        // Sized so one texel lands on about one game pixel from a couple of metres (crisp, not aliased).
+        const int w = 56, h = 24;
+        var px = new Color[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                px[y * w + x] = y % 2 == 0 ? new Color(.02f, .025f, .02f) : new Color(.045f, .05f, .04f);   // CRT scanlines
+        PixelFont.Stamp(px, w, h, gun, w / 2, 18, 1, Color.white, 0f, 1);
+        PixelFont.Stamp(px, w, h, price, w / 2, 7, 2, Color.white, 0f, 2);
+        return PixelFont.Save(px, w, h, $"Assets/Textures/Station/Locker_{file}_Screen.png");
+    }
+
+    static Material Painted(string name, Texture2D tex, bool lit = true)
+    {
+        string path = Mats + name + ".mat";
+        var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (m == null) { m = new Material(Shader.Find("Retro/PS1 Lit")); AssetDatabase.CreateAsset(m, path); }
+        m.SetTexture("_BaseMap", tex);
+        m.SetColor("_BaseColor", lit ? Color.white : new Color(1f, .62f, .2f));
+        m.SetVector("_SnapResolution", new Vector4(320f, 240f, 0f, 0f));
+        m.SetFloat("_Affine", .1f);
+        m.SetFloat("_Lighting", lit ? 1f : 0f);
+        m.enableInstancing = true;
+        EditorUtility.SetDirty(m);
+        return m;
     }
 
     static string Title(string s) => s.Length == 0 ? s : char.ToUpper(s[0]) + s.Substring(1).ToLower().Replace(" ", "");

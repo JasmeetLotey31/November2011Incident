@@ -38,6 +38,7 @@ public sealed class WeaponLocker : MonoBehaviour
 
     static readonly Color Amber = new Color(1f, .62f, .2f), Denied = new Color(1f, .16f, .1f), Approved = new Color(.55f, 1f, .45f);
     static readonly int EmissionId = Shader.PropertyToID("_EmissionColor");
+    static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     static AudioClip beepClip, buzzClip;
     MaterialPropertyBlock block;
     float openUntil = -1f, flashUntil = -1f, doorAngle, lampBase;
@@ -112,7 +113,8 @@ public sealed class WeaponLocker : MonoBehaviour
         if (screenGlow != null)
         {
             screenGlow.GetPropertyBlock(block);
-            block.SetColor(EmissionId, c * (flashing ? .35f : .06f)); // dark CRT, the text does the glowing
+            block.SetColor(BaseColorId, c);                               // tints the painted white letters
+            block.SetColor(EmissionId, c * (flashing ? .25f : .04f));     // a faint glow on the dark CRT
             screenGlow.SetPropertyBlock(block);
         }
         // The lamp hums: a slow, uneven flicker (the station's on emergency power).
